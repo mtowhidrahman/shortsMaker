@@ -13,5 +13,6 @@ os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "")
 
 # Whisper models download into models/whisper instead of C:\Users\...\.cache.
 WHISPER_DIR = MODELS_DIR / "whisper"
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 WHISPER_MODEL = "base"
 FACE_MODEL = MODELS_DIR / "blaze_face_short_range.tflite"
