@@ -18,9 +18,12 @@ Finished clips are saved in the `output` folder.
 
 ## One-time setup (already done)
 
+Everything heavy is kept inside this folder (E: drive) to save space on C:.
+
 - Python 3.12 virtual environment in `.venv`
-- ffmpeg (installed with `winget install Gyan.FFmpeg`)
-- Libraries: `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`
+- ffmpeg: `ffmpeg.exe` and `ffprobe.exe` in `tools\ffmpeg` (from the gyan.dev build)
+- Whisper speech models download into `models\whisper` on first use
+- Libraries: `.\.venv\Scripts\python.exe -m pip install --no-cache-dir -r requirements.txt`
 - Gemini API key saved as the environment variable `GEMINI_API_KEY`
 
 ## If YouTube downloads stop working
@@ -28,5 +31,5 @@ Finished clips are saved in the `output` folder.
 Update the downloader:
 
 ```
-.\.venv\Scripts\python.exe -m pip install -U yt-dlp
+.\.venv\Scripts\python.exe -m pip install --no-cache-dir -U yt-dlp
 ```
