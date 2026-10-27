@@ -22,3 +22,5 @@ GEMINI_MODEL = "gemini-3.8-flash"
 NUM_CLIPS = 3
 MAX_CLIP_SECONDS = 59.0   # "under 60 seconds", with a small safety margin
 MIN_CLIP_SECONDS = 15.0
+PAD_START = 0.5   # seconds added before each clip so the first word is not cut off
+PAD_END = 0.0     # seconds added after each clip (caption end times already run a bit late)
