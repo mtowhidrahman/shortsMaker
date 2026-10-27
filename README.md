@@ -5,6 +5,8 @@ Runs only on your computer and costs nothing.
 
 > Use it only on your own videos, or videos you have permission to use.
 
+Remember always, I dont Want C drive of my PC to be taken so much space
+
 ## Start the app
 
 Open PowerShell in this folder and run:

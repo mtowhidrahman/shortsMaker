@@ -7,6 +7,12 @@ TEMP_DIR = ROOT / "temp"
 OUTPUT_DIR = ROOT / "output"
 MODELS_DIR = ROOT / "models"
 
+# Keep all temporary files of this program (and ffmpeg/yt-dlp) on E:, never in C:\...\Temp.
+TEMP_DIR.mkdir(exist_ok=True)
+os.environ["TMP"] = os.environ["TEMP"] = str(TEMP_DIR)
+import tempfile
+tempfile.tempdir = str(TEMP_DIR)
+
 # ffmpeg lives in tools/ffmpeg; put it on PATH for this program only.
 FFMPEG_DIR = ROOT / "tools" / "ffmpeg"
 os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "")
