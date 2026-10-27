@@ -16,3 +16,9 @@ WHISPER_DIR = MODELS_DIR / "whisper"
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 WHISPER_MODEL = "base"
 FACE_MODEL = MODELS_DIR / "blaze_face_short_range.tflite"
+
+# Gemini model for picking clips (free tier). Key is read from the GEMINI_API_KEY environment variable.
+GEMINI_MODEL = "gemini-3.8-flash"
+NUM_CLIPS = 3
+MAX_CLIP_SECONDS = 59.0   # "under 60 seconds", with a small safety margin
+MIN_CLIP_SECONDS = 15.0

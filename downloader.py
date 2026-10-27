@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 import yt_dlp
+from yt_dlp.extractor.youtube import YoutubeIE
 
 import config
 
@@ -56,8 +57,17 @@ def transcript_text(segments):
 
 def download(url, progress=print):
     """Download video (max 1080p, mp4) and English captions into temp/.
-    Returns dict with video_path, title, duration, segments, transcript_source."""
+    Returns dict with video_path, title, duration, segments, transcript_source.
+    If this video was downloaded before, reuse it (fewer YouTube requests = fewer bot checks)."""
     config.TEMP_DIR.mkdir(exist_ok=True)
+    vid = YoutubeIE.suitable(url) and YoutubeIE._match_id(url)
+    cache = config.TEMP_DIR / f"{vid}_info.json"
+    if vid and cache.exists() and (config.TEMP_DIR / f"{vid}.mp4").exists():
+        progress("Using the copy already downloaded in temp/.")
+        r = json.loads(cache.read_text(encoding="utf-8"))
+        r["video_path"] = config.TEMP_DIR / f"{vid}.mp4"
+        return r
+
     opts = {
         # Highest real resolution up to 1080p (skip YouTube's AI-upscaled "-sr" versions).
         # Between equal resolutions prefer H.264 + AAC (fastest to process).
@@ -76,8 +86,14 @@ def download(url, progress=print):
         "no_warnings": True,
     }
     progress("Downloading video and captions...")
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+    except yt_dlp.utils.DownloadError as e:
+        if "not a bot" in str(e):
+            raise RuntimeError("YouTube is asking to confirm you are not a bot. This is usually "
+                               "temporary: wait a while and try again.") from e
+        raise RuntimeError(f"Could not download the video: {e}") from e
 
     vid = info["id"]
     video_path = config.TEMP_DIR / f"{vid}.mp4"
@@ -95,9 +111,10 @@ def download(url, progress=print):
         segments, source = _whisper_transcript(video_path), "whisper"
 
     (config.TEMP_DIR / f"{vid}_transcript.txt").write_text(transcript_text(segments), encoding="utf-8")
-    return {"id": vid, "video_path": video_path, "title": info.get("title", vid),
-            "duration": float(info.get("duration") or 0), "segments": segments,
-            "transcript_source": source}
+    r = {"id": vid, "title": info.get("title", vid), "duration": float(info.get("duration") or 0),
+         "segments": segments, "transcript_source": source}
+    (config.TEMP_DIR / f"{vid}_info.json").write_text(json.dumps(r), encoding="utf-8")
+    return {**r, "video_path": video_path}
 
 
 if __name__ == "__main__":
