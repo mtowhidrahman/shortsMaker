@@ -1,9 +1,12 @@
-# Step 4: cut clips out of the long video and make them vertical (9:16, 1080x1920).
-# make_clips() uses the face-tracking crop from tracker.py; center_crop() is the simple version.
+# Cut clips out of the long video and turn them into finished vertical shorts (1080x1920):
+# cut (Step 4) -> captions (Step 6, captions.py) -> face-tracking crop + burn-in (Step 5, tracker.py).
+# center_crop() is the simple Step 4 version, kept for reference.
 import subprocess
 import sys
 
-import config
+import config  # first: sets memory limits and cache folders
+from captions import make_captions
+from downloader import load_whisper
 from tracker import track_crop
 
 OUT_W, OUT_H = 1080, 1920
@@ -44,16 +47,20 @@ def pad(clip, duration):
 
 
 def make_clips(video, clips, duration, progress=print):
-    """Cut every clip into temp/ and write vertical versions to output/clip_N.mp4."""
+    """Cut every clip, add captions and face tracking, and write output/clip_N.mp4."""
     config.OUTPUT_DIR.mkdir(exist_ok=True)
+    model = load_whisper()                      # load the speech model once for all clips
     outputs = []
     for i, c in enumerate(clips, 1):
         start, end = pad(c, duration)
         progress(f"Clip {i}: cutting {start:.1f}s - {end:.1f}s...")
         raw = cut(video, start, end, config.TEMP_DIR / f"clip_{i}_raw.mp4")
-        progress(f"Clip {i}: making it vertical with face tracking...")
+        progress(f"Clip {i}: listening for exact word timing (captions)...")
+        ass = config.TEMP_DIR / f"clip_{i}.ass"
+        make_captions(raw, ass, model)
+        progress(f"Clip {i}: making it vertical with face tracking and captions...")
         out = config.OUTPUT_DIR / f"clip_{i}.mp4"
-        track_crop(raw, out, progress=progress)
+        track_crop(raw, out, vf=f"ass={ass.name}", progress=progress)
         outputs.append(out)
     return outputs
 

@@ -159,7 +159,8 @@ def track_crop(src, out, vf=None, progress=print):
         cmd += ["-vf", vf]
     cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "20", *ENCODE_ARGS, "-pix_fmt", "yuv420p",
             "-c:a", "copy", "-movflags", "+faststart", str(out)]
-    enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Run inside TEMP_DIR so filters can name files there without Windows path escaping (ass=clip_1.ass).
+    enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, cwd=config.TEMP_DIR)
     y0 = (h - crop_h) // 2
     try:
         for i, frame in enumerate(read_frames(src, w, h)):

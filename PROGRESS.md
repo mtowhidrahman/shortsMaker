@@ -1,7 +1,7 @@
 # Progress notes (for Claude: read this after CLAUDE.md)
 
-Last updated: 2026-10-28. Steps 1–5 are done and committed in git. **Next: Step 6 (captions).**
-Wait for the user to say "next" before starting Step 6.
+Last updated: 2026-10-28. Steps 1–6 are done and committed in git. **Next: Step 7 (Streamlit app).**
+Wait for the user to say "next" before starting Step 7.
 
 ## Project location
 
@@ -21,7 +21,9 @@ The user wants C: to stay at about 11+ GB free, always. They said this clearly a
   Edge) already commit about 23 of the 24.8 GB limit. During Step 5 the page file grew to about 14 GB.
   Fixes in place: `OPENBLAS_NUM_THREADS=2` in config.py (saves ~470 MB, so **`import config` must be the first
   import**), `cv2.setNumThreads(4)`, ffmpeg `-threads` + `rc-lookahead=10`. Measured peak for one clip:
-  about 540 MB (was 1.9 GB). Measure peak memory for any new heavy step (Whisper in Step 6).
+  about 540 MB (was 1.9 GB). Also `CT2_USE_MKL=0` (Whisper's CTranslate2 with MKL committed ~1 GB to load
+  `base`; without it, 0.39 GB peak at the same speed). Full pipeline for 3 clips: peak about 770 MB, about 2 minutes.
+  The Whisper `small` model peaks at 2.7 GB, so don't use it on this PC.
 - Check C: free space before and after each step and tell the user.
 - Install with `pip install --no-cache-dir`. No winget or global installs.
 - Python 3.12 itself is on C: (installed before this project). That is allowed.
@@ -54,7 +56,13 @@ The user wants C: to stay at about 11+ GB free, always. They said this clearly a
 - `clipper.py` (Step 3): `pick_clips()` (Gemini JSON, validate, retry once, raises ClipError),
   `validate()`, `save_transcript()`, `parse_manual()` (lines like `1:05 - 1:50`).
 - `cutter.py` (Step 4): `cut()` (frame-accurate re-encode at original size → TEMP_DIR `clip_N_raw.mp4`),
-  `center_crop()` (simple version, unused), `make_clips(video, clips, duration)` → cut + `track_crop` → `output/clip_N.mp4`.
+  `center_crop()` (simple version, unused), **`make_clips(video, clips, duration, progress)`** = the whole
+  per-clip pipeline: cut → `make_captions` → `track_crop(vf="ass=clip_N.ass")` → `output/clip_N.mp4`.
+- `captions.py` (Step 6): Whisper `base` word timestamps on the raw clip (vad, word_timestamps), chunks of
+  ≤3 words / ≤1.6 s / break at pause >0.45 s or punctuation, UPPERCASE, trailing `.,;:` removed. ASS style: Arial bold 112,
+  white with black outline 9 + shadow 4, bottom-center, MarginV 460. The encoder ffmpeg runs with cwd=TEMP_DIR, so
+  `ass=clip_N.ass` needs no path escaping. `config.py` writes its own fonts.conf (cache in TEMP_DIR) so
+  fontconfig never writes to C:.
 - `tracker.py` (Step 5): `track_crop(src, out, vf=None)`. Pass 1 decodes with an ffmpeg pipe, detects
   camera cuts (mean abs diff of 64x36 gray > 18) and runs YuNet on every 2nd frame. Per shot,
   detections are linked into tracks, and the speaker track is the one with the highest sum of
@@ -92,9 +100,5 @@ The user wants C: to stay at about 11+ GB free, always. They said this clearly a
 
 ## Plan for the next steps
 
-- Step 6 `captions.py`: Whisper word timestamps on each raw clip only (`load_audio` of the clip,
-  `word_timestamps=True`), ASS file with a few words at a time, large bottom-center text with an outline, burned in
-  through `track_crop(..., vf="ass=...")` so there is only one encode. Watch out for Windows path escaping
-  in the ass filter (use a relative path or escape the drive colon). Put the font in the project if one is needed.
 - Step 7 `app.py`: Streamlit page with link → button → progress → 3 downloads, plus the manual fallback
   (save the transcript, paste timestamps).

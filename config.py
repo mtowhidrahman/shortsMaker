@@ -6,6 +6,9 @@ from pathlib import Path
 # Low memory: numpy's math library reserves ~30 MB per CPU core (~470 MB on this 16-core PC)
 # that we never use. The PC's memory is nearly full, and extra use grows Windows' page file on C:.
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
+# Whisper's engine (CTranslate2) with Intel MKL reserves ~1 GB to load the small "base" model.
+# Without MKL: ~0.4 GB peak, same speed.
+os.environ.setdefault("CT2_USE_MKL", "0")
 
 ROOT = Path(__file__).resolve().parent
 # All scratch files (downloads, cut pieces, caches, test scripts) go to a separate folder on E:.
@@ -25,6 +28,18 @@ CACHE_DIR = TEMP_DIR / "cache"
 os.environ["HF_HOME"] = str(CACHE_DIR / "huggingface")
 os.environ["XDG_CACHE_HOME"] = str(CACHE_DIR)
 os.environ["PIP_CACHE_DIR"] = str(CACHE_DIR / "pip")
+
+# Caption fonts: ffmpeg's font finder (fontconfig) would otherwise write its cache to C:.
+# Our own small config reads Windows' fonts and keeps the cache in the scratch folder.
+_fc = CACHE_DIR / "fonts.conf"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+_fc.write_text(f"""<?xml version="1.0"?>
+<fontconfig>
+  <dir>C:/Windows/Fonts</dir>
+  <cachedir>{(CACHE_DIR / "fontconfig").as_posix()}</cachedir>
+</fontconfig>
+""", encoding="utf-8")
+os.environ["FONTCONFIG_FILE"] = str(_fc)
 
 # ffmpeg lives in tools/ffmpeg; put it on PATH for this program only.
 FFMPEG_DIR = ROOT / "tools" / "ffmpeg"
