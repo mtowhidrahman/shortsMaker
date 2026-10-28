@@ -1,8 +1,8 @@
 # One-time setup (run again after moving the project folder).
 # Everything is installed INSIDE this folder; nothing big is written to C:.
-# Usage (PowerShell, in this folder):  powershell -ExecutionPolicy Bypass -File setup.ps1
+# Usage (PowerShell, in the project folder):  powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+Set-Location (Split-Path $PSScriptRoot)   # the project folder (this script is in scripts\)
 
 # Keep pip's temporary files on E: too (same folder as TEMP_DIR in config.py).
 $tmp = "E:\Personal Work\Programming\Shorts Temp"
@@ -27,4 +27,4 @@ if (-not (Test-Path tools\ffmpeg\ffmpeg.exe)) {
 }
 
 # 4. Quick check (Whisper model downloads into models\whisper on first use).
-.\.venv\Scripts\python.exe -c "import config, cv2, yt_dlp, faster_whisper, streamlit; from google import genai; import downloader; downloader.load_whisper(); print('Setup OK')"
+.\.venv\Scripts\python.exe -c "from shorts import config, downloader; import cv2, yt_dlp, faster_whisper, streamlit; from google import genai; downloader.load_whisper(); print('Setup OK')"

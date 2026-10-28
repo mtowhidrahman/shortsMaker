@@ -3,7 +3,7 @@
 > Read this whole file first. Then follow "How to start" at the bottom.
 > Do NOT write code or install anything until the user says "start".
 >
-> **Work already started: read `PROGRESS.md` next. It says where we are and what to do first.**
+> **Work already started: read `docs/PROGRESS.md` next. It says where we are and what to do first.**
 > **Never use space on the C: drive. Scratch files, caches, downloads and test scripts go to
 > `E:\Personal Work\Programming\Shorts Temp`; models and tools stay in this project folder.**
 

@@ -3,7 +3,7 @@
 # Plan:   fill gaps, smooth the positions into calm "camera moves".
 # Pass 2: crop each frame around the planned position, scale to 1080x1920, add the audio.
 # Frames are streamed one at a time through ffmpeg pipes, so memory use stays small.
-import config  # first: sets memory limits before numpy/cv2 load
+from . import config  # first: sets memory limits before numpy/cv2 load
 
 import json
 import subprocess
@@ -178,6 +178,6 @@ def track_crop(src, out, vf=None, progress=print):
 
 
 if __name__ == "__main__":
-    # Quick test: python tracker.py <raw clip> <output.mp4>
+    # Quick test (from the project folder): .venv\Scripts\python.exe -m shorts.tracker <raw clip> <output.mp4>
     r = track_crop(sys.argv[1], sys.argv[2])
     print(f"Face found in {r['face_found']:.0%} of checked frames -> {sys.argv[2]}")

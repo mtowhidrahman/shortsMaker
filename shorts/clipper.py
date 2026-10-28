@@ -5,8 +5,8 @@ import os
 import re
 import sys
 
-import config
-from downloader import transcript_text
+from . import config
+from .downloader import transcript_text
 
 
 class ClipError(Exception):
@@ -135,8 +135,8 @@ def parse_manual(text, duration):
 
 
 if __name__ == "__main__":
-    # Quick test: python clipper.py <youtube link>
-    from downloader import download
+    # Quick test (from the project folder): .venv\Scripts\python.exe -m shorts.clipper <youtube link>
+    from .downloader import download
     r = download(sys.argv[1])
     for i, c in enumerate(pick_clips(r["segments"], r["duration"], r["title"]), 1):
         print(f"Clip {i}: {c['start']:.1f}s - {c['end']:.1f}s ({c['end'] - c['start']:.1f}s)  {c['reason']}")

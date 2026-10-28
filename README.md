@@ -28,12 +28,12 @@ The PC's memory is nearly full, and Windows then uses extra space on C:.
 ## One-time setup (run again if you move this folder)
 
 ```
-powershell -ExecutionPolicy Bypass -File setup.ps1
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
 Everything is kept inside this folder to save space on C: (only Python 3.12 itself is on C:).
 
-- Python environment in `.venv` (rebuilt by `setup.ps1`)
+- Python environment in `.venv` (rebuilt by `scripts\setup.ps1`)
 - ffmpeg: `ffmpeg.exe` and `ffprobe.exe` in `tools\ffmpeg` (from the gyan.dev build)
 - Whisper speech model in `models\whisper`, face model in `models\`
 - Tool caches and temporary files in `E:\Personal Work\Programming\Shorts Temp`

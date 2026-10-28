@@ -1,11 +1,11 @@
 # Step 6: word-level captions. Whisper listens to one clip, we group the words into
 # short chunks, and write an .ass subtitle file that ffmpeg burns into the video.
-import config  # first: sets memory limits and cache folders
+from . import config  # first: sets memory limits and cache folders
 
 import re
 import sys
 
-from downloader import load_audio, load_whisper
+from .downloader import load_audio, load_whisper
 
 MAX_WORDS = 3            # words shown at the same time
 MAX_CHUNK_SECONDS = 1.6  # a chunk never stays longer than this
@@ -94,7 +94,7 @@ def make_captions(clip_path, ass_path, model=None):
 
 
 if __name__ == "__main__":
-    # Quick test: python captions.py <clip.mp4>   -> writes <clip>.ass next to it
+    # Quick test (from the project folder): .venv\Scripts\python.exe -m shorts.captions <clip.mp4>   -> writes <clip>.ass next to it
     from pathlib import Path
     src = Path(sys.argv[1])
     n = make_captions(src, src.with_suffix(".ass"))

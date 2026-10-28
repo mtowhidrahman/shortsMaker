@@ -1,6 +1,6 @@
 # Step 2: YouTube link -> video file + English transcript.
 # Transcript comes from YouTube captions; if there are none, Whisper listens to the audio.
-import config  # first: sets memory limits before numpy loads
+from . import config  # first: sets memory limits before numpy loads
 
 import json
 import subprocess
@@ -118,7 +118,7 @@ def download(url, progress=print):
 
 
 if __name__ == "__main__":
-    # Quick test: python downloader.py <youtube link>
+    # Quick test (from the project folder): .venv\Scripts\python.exe -m shorts.downloader <youtube link>
     r = download(sys.argv[1])
     print(f"Title: {r['title']}\nDuration: {r['duration']}s\nVideo: {r['video_path']}")
     print(f"Transcript: {len(r['segments'])} lines from {r['transcript_source']}")

@@ -4,10 +4,10 @@
 import subprocess
 import sys
 
-import config  # first: sets memory limits and cache folders
-from captions import make_captions
-from downloader import load_whisper
-from tracker import track_crop
+from . import config  # first: sets memory limits and cache folders
+from .captions import make_captions
+from .downloader import load_whisper
+from .tracker import track_crop
 
 OUT_W, OUT_H = 1080, 1920
 
@@ -66,9 +66,9 @@ def make_clips(video, clips, duration, progress=print):
 
 
 if __name__ == "__main__":
-    # Quick test: python cutter.py <youtube link>   (needs GEMINI_API_KEY)
-    from clipper import pick_clips
-    from downloader import download
+    # Quick test (from the project folder): .venv\Scripts\python.exe -m shorts.cutter <youtube link>   (needs GEMINI_API_KEY)
+    from .clipper import pick_clips
+    from .downloader import download
     r = download(sys.argv[1])
     clips = pick_clips(r["segments"], r["duration"], r["title"])
     for p in make_clips(r["video_path"], clips, r["duration"]):

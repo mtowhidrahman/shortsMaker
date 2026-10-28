@@ -1,14 +1,14 @@
 # Step 7: the web page. Run with:  .\.venv\Scripts\streamlit.exe run app.py
 # Paste a YouTube link, click one button, get 3 vertical shorts with face tracking and captions.
-import config  # first: memory limits, cache folders, ffmpeg path
+from shorts import config  # first: memory limits, cache folders, ffmpeg path
 
 import shutil
 
 import streamlit as st
 
-from clipper import ClipError, parse_manual, pick_clips, save_transcript
-from cutter import make_clips
-from downloader import download
+from shorts.clipper import ClipError, parse_manual, pick_clips, save_transcript
+from shorts.cutter import make_clips
+from shorts.downloader import download
 
 st.set_page_config(page_title="Short Video Maker", page_icon="🎬")
 st.title("🎬 Short Video Maker")

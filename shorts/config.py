@@ -10,7 +10,7 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
 # Without MKL: ~0.4 GB peak, same speed.
 os.environ.setdefault("CT2_USE_MKL", "0")
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent   # the project folder (this file is in shorts/)
 # All scratch files (downloads, cut pieces, caches, test scripts) go to a separate folder on E:.
 # The user's C: drive is almost full: nothing from this program may be stored on C:.
 TEMP_DIR = Path(r"E:\Personal Work\Programming\Shorts Temp")
