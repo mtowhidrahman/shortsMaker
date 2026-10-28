@@ -23,7 +23,7 @@ The user tested the app and everything worked. Do these in order, test and commi
   cache the info so the download reuses it) → show the title and length plus a suggested count (about 1 per
   4–5 min, at least 1, at most 10), pre-filled and editable → length slider (default 60–90 s, range 15–90) →
   "Make shorts".
-- **E. Speed:** encode once instead of twice (no intermediate crf16 cut), x264 preset medium → veryfast,
+- **E. Speed (DONE, 3 clips: 125 s -> 53 s):** encode once instead of twice (no intermediate crf16 cut), x264 preset medium → veryfast,
   face detection on smaller frames. Time each stage before and after and report the numbers. Keep RAM low.
 - **F. Progress:** a bar for each stage (download %, clip picking, per clip: captions, face scan, render %),
   an estimated time left, a total timer, and a final "Finished in X" with each stage's time.
@@ -55,6 +55,16 @@ The user tested the app and everything worked. Do these in order, test and commi
 - **Page file event:** during a test on 2026-10-28, C:\pagefile.sys grew from about 9 to 14.9 GB (C: free went from 14 to 8 GB). Other apps
   (ChatGPT, Chrome, Edge, VS Code) had committed 22.5 of 25.8 GB. The app itself peaks at about 0.4 GB (Python) plus ffmpeg. Only
   a restart shrinks the page file. Run as few heavy tests as possible.
+
+## Part E measurements (one 30 s clip, 720p, 2026-10-29)
+
+Before: cut 1 s, face finding 21 s (YuNet at 1280 px on every 2nd frame), encode 19 s (x264 medium).
+Changes: faces at 640 px on every 3rd frame with 8 cv2 threads (5 s; camera path within 1% of before; face found 98–100%);
+x264 veryfast (7.5 s, SSIM 0.994 against medium, file slightly smaller). Not changed: the intermediate cut (only 1 s).
+Note: 640 px *looked* worse in a first test, but that test measured one face track across camera cuts. Compare
+`plan_camera` output per shot instead (Shorts Temp\scratch\prof_e4.py). Centering check on finished clips:
+Shorts Temp\scratch\check_center.py (median offset 0.05–0.07, same as before).
+Full-transcript Whisper (videos without captions) uses beam_size=1: 30% faster, same text.
 
 ## Project location
 
