@@ -29,7 +29,8 @@ os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "")
 WHISPER_DIR = MODELS_DIR / "whisper"
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 WHISPER_MODEL = "base"
-FACE_MODEL = MODELS_DIR / "blaze_face_short_range.tflite"
+# OpenCV YuNet face detector (MediaPipe's model missed small faces on wide shots).
+FACE_MODEL = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 
 # Gemini model for picking clips (free tier). Key is read from the GEMINI_API_KEY environment variable.
 GEMINI_MODEL = "gemini-3.8-flash"

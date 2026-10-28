@@ -15,10 +15,10 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --no-cache-dir -q -U pip
 .\.venv\Scripts\python.exe -m pip install --no-cache-dir -q -r requirements.txt
 
-# 2. Face detection model (small file, kept in models/).
+# 2. Face detection model (OpenCV YuNet, small file, kept in models/).
 New-Item -ItemType Directory -Force models | Out-Null
-if (-not (Test-Path models\blaze_face_short_range.tflite)) {
-    Invoke-WebRequest "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite" -OutFile models\blaze_face_short_range.tflite
+if (-not (Test-Path models\face_detection_yunet_2023mar.onnx)) {
+    Invoke-WebRequest "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -OutFile models\face_detection_yunet_2023mar.onnx
 }
 
 # 3. ffmpeg must be in tools\ffmpeg (ffmpeg.exe + ffprobe.exe). It moves with the folder.
@@ -27,4 +27,4 @@ if (-not (Test-Path tools\ffmpeg\ffmpeg.exe)) {
 }
 
 # 4. Quick check (Whisper model downloads into models\whisper on first use).
-.\.venv\Scripts\python.exe -c "import config, cv2, mediapipe, yt_dlp, faster_whisper, streamlit; from google import genai; import downloader; downloader.load_whisper(); print('Setup OK')"
+.\.venv\Scripts\python.exe -c "import config, cv2, yt_dlp, faster_whisper, streamlit; from google import genai; import downloader; downloader.load_whisper(); print('Setup OK')"

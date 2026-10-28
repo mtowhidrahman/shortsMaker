@@ -1,9 +1,10 @@
 # Step 4: cut clips out of the long video and make them vertical (9:16, 1080x1920).
-# The center crop here is the simple version; tracker.py replaces it with face tracking.
+# make_clips() uses the face-tracking crop from tracker.py; center_crop() is the simple version.
 import subprocess
 import sys
 
 import config
+from tracker import track_crop
 
 OUT_W, OUT_H = 1080, 1920
 
@@ -50,8 +51,10 @@ def make_clips(video, clips, duration, progress=print):
         start, end = pad(c, duration)
         progress(f"Clip {i}: cutting {start:.1f}s - {end:.1f}s...")
         raw = cut(video, start, end, config.TEMP_DIR / f"clip_{i}_raw.mp4")
-        progress(f"Clip {i}: making it vertical...")
-        outputs.append(center_crop(raw, config.OUTPUT_DIR / f"clip_{i}.mp4"))
+        progress(f"Clip {i}: making it vertical with face tracking...")
+        out = config.OUTPUT_DIR / f"clip_{i}.mp4"
+        track_crop(raw, out, progress=progress)
+        outputs.append(out)
     return outputs
 
 
