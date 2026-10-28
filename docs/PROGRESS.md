@@ -10,13 +10,13 @@ The user tested the app and everything worked. Do these in order, test and commi
 - **A. Folders (DONE):** move the engine into `shorts/` (config, downloader, clipper, cutter, tracker, captions),
   `setup.ps1` into `scripts/`, PROGRESS.md into `docs/`. app.py, start.bat, README and CLAUDE.md stay at the root.
   No change in behaviour.
-- **B. Page cleanup:** hide the Deploy button, the menu and the running animation. Fix the delete section
+- **B. Page cleanup (DONE):** hide the Deploy button, the menu and the running animation. Fix the delete section
   (a one-line expression `shutil.rmtree(p) if ... else p.unlink()` is printed as "None" by Streamlit magic).
   Show the size before deleting and "Freed X MB" after.
-- **C. Clean endings (most important):** clips end mid-sentence because YouTube auto-captions have no
+- **C. Clean endings (DONE, see below):** clips end mid-sentence because YouTube auto-captions have no
   punctuation. After Gemini picks a clip, run Whisper a few seconds past the end and move the end (and the start)
   to a real sentence end followed by a pause, without going over the length limit.
-- **D. Clip count and length:** an input for 1–10 clips and a length slider. **The user approved clips up to
+- **D. Clip count and length (DONE):** an input for 1–10 clips and a length slider. **The user approved clips up to
   90 s** (this replaces "under 60 s" in CLAUDE.md). The default should prefer long clips. Long videos (30+ min)
   should be able to give 5–7 clips of up to 90 s. Check the count against the video length.
   **Both are inputs, not hardcoded.** Flow: paste a link → "Check video" (one small info request, no download;
@@ -30,6 +30,31 @@ The user tested the app and everything worked. Do these in order, test and commi
 - **G. Copyright:** show the video's license (Creative Commons or Standard) and a credit line for CC videos.
   No tricks to dodge Content ID.
 - **H. Hosting:** the user said "not right now". Don't build anything.
+
+## How Parts C and D work (read before changing clip edges)
+
+- `cutter.make_clips(video, clips, duration, progress, min_len, max_len)`:
+  1. `listen()`: Whisper (with `PUNCTUATION_HINT` as the prompt, which makes full stops steadier) hears each clip
+     from 5 s before to 10 s after, never into the neighbouring clips. Words in the last 1.5 s are marked `cut_off`.
+  2. `clipper.fix_edges()`: ONE Gemini request for all clips. Numbered words go in, and Gemini returns `start_word`/`end_word`
+     by meaning. This is the reliable part: Whisper `base` often puts full stops in the wrong place, especially in
+     speech with dramatic pauses. It uses thinking_level "low", 45 s per try, and only 2 tries; it never raises.
+  3. When Gemini can't answer: `sentence_edges()` rules (Whisper full stops = 0, long pause without a comma = 1.5,
+     ending earlier than the AI costs 1.5x more than ending later, abbreviations like "Dr." ignored).
+  4. `edge_times()` adds up to 0.3 s before and 0.4 s after, never into the neighbouring words. The same Whisper words make the
+     captions (`captions.captions_for`), so Whisper runs once per clip (about 2 s).
+- Test results (TED video, 10 AI or typed time pairs): Gemini's edges were right in every case. The rules alone got 6–7 of 10.
+- `clipper._ask()`: every Gemini call. When the model is busy (503/504/timeout), it tries `GEMINI_BACKUP_MODEL`
+  (gemini-3.7-flash), then both again after 5 s and 10 s. On 2026-10-28 evening Gemini was overloaded for over an hour.
+- Part D: `downloader.video_info(url)` gets the title and length (from the cache json if the video is already downloaded,
+  otherwise 1 YouTube request kept in `_info_cache`). `download()` then reuses that answer via
+  `process_ie_result`, so there is 1 page request in total (tested with jNQXAC9IVRw, "Me at the zoo", 19 s, cached in Shorts Temp).
+  Page: a length slider (15–90, default 60–90) and a clip count (1..min(10, max_fit)) with a suggestion of
+  about 1 per 4.5 min. `max_fit` = 80% of the video / the shortest length.
+- `make_clips` deletes the old `output/clip_*.mp4` first (it skips files that are open in a player).
+- **Page file event:** during a test on 2026-10-28, C:\pagefile.sys grew from about 9 to 14.9 GB (C: free went from 14 to 8 GB). Other apps
+  (ChatGPT, Chrome, Edge, VS Code) had committed 22.5 of 25.8 GB. The app itself peaks at about 0.4 GB (Python) plus ffmpeg. Only
+  a restart shrinks the page file. Run as few heavy tests as possible.
 
 ## Project location
 

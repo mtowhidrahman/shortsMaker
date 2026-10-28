@@ -10,6 +10,8 @@ from .downloader import load_audio, load_whisper
 MAX_WORDS = 3            # words shown at the same time
 MAX_CHUNK_SECONDS = 1.6  # a chunk never stays longer than this
 PAUSE_BREAK = 0.45       # a pause this long starts a new chunk
+# A well-punctuated example makes Whisper put full stops more reliably (used to find sentence ends).
+PUNCTUATION_HINT = "Hello, and welcome. Today I want to talk about something important. It matters, and here is why."
 
 # Big bold white text, thick black outline + soft shadow, bottom-center (2), raised above the
 # area where phone apps put their buttons. Sizes are for the 1080x1920 output.
@@ -29,12 +31,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
-def transcribe_words(clip_path, model=None):
-    """Exact start/end time of every spoken word in the clip: [{"word", "start", "end"}]."""
+def transcribe_words(path, model=None, start=0.0, end=None):
+    """Exact start/end time of every spoken word between start and end seconds of the file
+    (the whole file by default), with punctuation: [{"word", "start", "end"}] in file time."""
     model = model or load_whisper()
-    segments, _ = model.transcribe(load_audio(clip_path), language="en", word_timestamps=True,
-                                   vad_filter=True, condition_on_previous_text=False)
-    return [{"word": w.word.strip(), "start": w.start, "end": w.end}
+    segments, _ = model.transcribe(load_audio(path, start or None, end), language="en",
+                                   word_timestamps=True, vad_filter=True,
+                                   condition_on_previous_text=False, initial_prompt=PUNCTUATION_HINT)
+    return [{"word": w.word.strip(), "start": w.start + start, "end": w.end + start}
             for s in segments for w in s.words if w.word.strip()]
 
 
@@ -91,6 +95,15 @@ def make_captions(clip_path, ass_path, model=None):
     words = transcribe_words(clip_path, model)
     write_ass(words, ass_path)
     return len(words)
+
+
+def captions_for(words, start, end, ass_path):
+    """Captions for the part [start, end] of the video, from words already transcribed
+    (times in video seconds). Times in the .ass file are relative to the clip start."""
+    inside = [dict(w, start=w["start"] - start, end=min(w["end"], end) - start)
+              for w in words if w["start"] >= start - 0.05 and w["start"] < end]
+    write_ass(inside, ass_path)
+    return len(inside)
 
 
 if __name__ == "__main__":

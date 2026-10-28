@@ -55,45 +55,84 @@ def transcript_text(segments):
     return "\n".join(f"[{s['start']:.1f}-{s['end']:.1f}] {s['text']}" for s in segments)
 
 
+# Highest real resolution up to 1080p (skip YouTube's AI-upscaled "-sr" versions).
+# Between equal resolutions prefer H.264 + AAC (fastest to process).
+YDL_OPTS = {
+    "format": "bv*[height<=1080][format_id!*=-sr]+ba/b[height<=1080]/b",
+    "format_sort": ["res:1080", "vcodec:h264", "acodec:aac"],
+    "merge_output_format": "mp4",
+    "outtmpl": str(config.TEMP_DIR / "%(id)s.%(ext)s"),
+    "ffmpeg_location": str(config.FFMPEG_DIR),
+    "writesubtitles": True,          # human-made captions (preferred)
+    "writeautomaticsub": True,       # YouTube auto captions (used if no human ones)
+    "subtitleslangs": ["en", "en-US", "en-GB"],
+    "subtitlesformat": "json3",
+    "noplaylist": True,
+    "quiet": True,
+    "noprogress": True,
+    "no_warnings": True,
+}
+_info_cache = {}   # video id -> YouTube's info from video_info(), so download() doesn't ask again
+
+
+def _video_id(url):
+    return YoutubeIE.suitable(url) and YoutubeIE._match_id(url)
+
+
+def _friendly(e):
+    """A readable error for the page."""
+    if "not a bot" in str(e):
+        return RuntimeError("YouTube is asking to confirm you are not a bot. This is usually "
+                            "temporary: wait a while and try again.")
+    return RuntimeError(f"Could not read the video: {e}")
+
+
+def video_info(url):
+    """Title and length of a video without downloading it: {"id", "title", "duration"}.
+    Uses the downloaded copy's notes if there is one (then YouTube is not asked at all)."""
+    vid = _video_id(url)
+    if not vid:
+        raise RuntimeError("This doesn't look like a YouTube video link.")
+    cache = config.TEMP_DIR / f"{vid}_info.json"
+    if cache.exists() and (config.TEMP_DIR / f"{vid}.mp4").exists():
+        r = json.loads(cache.read_text(encoding="utf-8"))
+    else:
+        if vid not in _info_cache:
+            try:
+                with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
+                    _info_cache[vid] = ydl.sanitize_info(ydl.extract_info(url, download=False))
+            except yt_dlp.utils.DownloadError as e:
+                raise _friendly(e) from e
+        r = _info_cache[vid]
+    return {"id": vid, "title": r.get("title", vid), "duration": float(r.get("duration") or 0)}
+
+
 def download(url, progress=print):
-    """Download video (max 1080p, mp4) and English captions into temp/.
+    """Download video (max 1080p, mp4) and English captions into the temp folder.
     Returns dict with video_path, title, duration, segments, transcript_source.
     If this video was downloaded before, reuse it (fewer YouTube requests = fewer bot checks)."""
     config.TEMP_DIR.mkdir(exist_ok=True)
-    vid = YoutubeIE.suitable(url) and YoutubeIE._match_id(url)
+    vid = _video_id(url)
     cache = config.TEMP_DIR / f"{vid}_info.json"
     if vid and cache.exists() and (config.TEMP_DIR / f"{vid}.mp4").exists():
-        progress("Using the copy already downloaded in temp/.")
+        progress("Using the copy already downloaded in the temp folder.")
         r = json.loads(cache.read_text(encoding="utf-8"))
         r["video_path"] = config.TEMP_DIR / f"{vid}.mp4"
         return r
 
-    opts = {
-        # Highest real resolution up to 1080p (skip YouTube's AI-upscaled "-sr" versions).
-        # Between equal resolutions prefer H.264 + AAC (fastest to process).
-        "format": "bv*[height<=1080][format_id!*=-sr]+ba/b[height<=1080]/b",
-        "format_sort": ["res:1080", "vcodec:h264", "acodec:aac"],
-        "merge_output_format": "mp4",
-        "outtmpl": str(config.TEMP_DIR / "%(id)s.%(ext)s"),
-        "ffmpeg_location": str(config.FFMPEG_DIR),
-        "writesubtitles": True,          # human-made captions (preferred)
-        "writeautomaticsub": True,       # YouTube auto captions (used if no human ones)
-        "subtitleslangs": ["en", "en-US", "en-GB"],
-        "subtitlesformat": "json3",
-        "noplaylist": True,
-        "quiet": True,
-        "noprogress": True,
-        "no_warnings": True,
-    }
     progress("Downloading video and captions...")
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+        with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
+            info = None
+            if vid in _info_cache:   # video_info() already asked YouTube: download from that answer
+                try:
+                    info = ydl.process_ie_result(_info_cache.pop(vid), download=True)
+                except Exception as e:   # e.g. the answer is too old: ask again below
+                    progress(f"Asking YouTube again ({str(e)[:60]})...")
+            if info is None or not (config.TEMP_DIR / f"{info['id']}.mp4").exists():
+                info = ydl.extract_info(url, download=True)
     except yt_dlp.utils.DownloadError as e:
-        if "not a bot" in str(e):
-            raise RuntimeError("YouTube is asking to confirm you are not a bot. This is usually "
-                               "temporary: wait a while and try again.") from e
-        raise RuntimeError(f"Could not download the video: {e}") from e
+        raise _friendly(e) from e
 
     vid = info["id"]
     video_path = config.TEMP_DIR / f"{vid}.mp4"
@@ -101,7 +140,7 @@ def download(url, progress=print):
         raise RuntimeError("Download finished but the video file was not found.")
 
     segments, source = [], "youtube captions"
-    for lang in opts["subtitleslangs"]:
+    for lang in YDL_OPTS["subtitleslangs"]:
         sub = config.TEMP_DIR / f"{vid}.{lang}.json3"
         if sub.exists():
             segments = _parse_json3(sub)
