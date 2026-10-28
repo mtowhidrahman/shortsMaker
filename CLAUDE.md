@@ -2,6 +2,10 @@
 
 > Read this whole file first. Then follow "How to start" at the bottom.
 > Do NOT write code or install anything until the user says "start".
+>
+> **Work already started: read `PROGRESS.md` next. It says where we are and what to do first.**
+> **The user's C: drive is almost full. Keep everything (caches, models, temp files, videos,
+> test scripts) inside this project folder. Never store large files on C:.**
 
 ## 1. What we are building
 

@@ -1,0 +1,29 @@
+# One-time setup (run again after moving the project folder).
+# Everything is installed INSIDE this folder; nothing big is written to C:.
+# Usage (PowerShell, in this folder):  powershell -ExecutionPolicy Bypass -File setup.ps1
+$ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
+
+# Keep pip's temporary files inside the project too.
+New-Item -ItemType Directory -Force temp | Out-Null
+$env:TMP = $env:TEMP = (Resolve-Path temp).Path
+
+# 1. Fresh Python 3.12 environment in .venv (an old one breaks when the folder moves).
+if (Test-Path .venv) { Remove-Item -Recurse -Force .venv }
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --no-cache-dir -q -U pip
+.\.venv\Scripts\python.exe -m pip install --no-cache-dir -q -r requirements.txt
+
+# 2. Face detection model (small file, kept in models/).
+New-Item -ItemType Directory -Force models | Out-Null
+if (-not (Test-Path models\blaze_face_short_range.tflite)) {
+    Invoke-WebRequest "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite" -OutFile models\blaze_face_short_range.tflite
+}
+
+# 3. ffmpeg must be in tools\ffmpeg (ffmpeg.exe + ffprobe.exe). It moves with the folder.
+if (-not (Test-Path tools\ffmpeg\ffmpeg.exe)) {
+    Write-Host "MISSING: tools\ffmpeg\ffmpeg.exe and ffprobe.exe (download the 'full build' zip from gyan.dev and copy them there)."
+}
+
+# 4. Quick check (Whisper model downloads into models\whisper on first use).
+.\.venv\Scripts\python.exe -c "import config, cv2, mediapipe, yt_dlp, faster_whisper, streamlit; from google import genai; import downloader; downloader.load_whisper(); print('Setup OK')"

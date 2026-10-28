@@ -13,6 +13,12 @@ os.environ["TMP"] = os.environ["TEMP"] = str(TEMP_DIR)
 import tempfile
 tempfile.tempdir = str(TEMP_DIR)
 
+# Tool caches (Hugging Face / Whisper downloads, yt-dlp, pip) also go here instead of C:\Users\...\.cache.
+CACHE_DIR = TEMP_DIR / "cache"
+os.environ["HF_HOME"] = str(CACHE_DIR / "huggingface")
+os.environ["XDG_CACHE_HOME"] = str(CACHE_DIR)
+os.environ["PIP_CACHE_DIR"] = str(CACHE_DIR / "pip")
+
 # ffmpeg lives in tools/ffmpeg; put it on PATH for this program only.
 FFMPEG_DIR = ROOT / "tools" / "ffmpeg"
 os.environ["PATH"] = str(FFMPEG_DIR) + os.pathsep + os.environ.get("PATH", "")
