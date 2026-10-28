@@ -8,7 +8,7 @@ import streamlit as st
 
 from shorts.clipper import ClipError, parse_manual, pick_clips, save_transcript
 from shorts.cutter import make_clips
-from shorts.downloader import download
+from shorts.downloader import download, transcript_text
 
 st.set_page_config(page_title="Short Video Maker", page_icon="🎬")
 st.title("🎬 Short Video Maker")
@@ -65,8 +65,8 @@ if st.session_state.get("ai_error") and st.session_state.get("video"):
     if st.button("Save transcript to a text file"):
         path = save_transcript(video["segments"], config.OUTPUT_DIR / f"transcript_{video['id']}.txt")
         st.success(f"Saved: {path}")
-    st.download_button("Download transcript", (config.TEMP_DIR / f"{video['id']}_transcript.txt")
-                       .read_text(encoding="utf-8"), file_name=f"transcript_{video['id']}.txt")
+    st.download_button("Download transcript", transcript_text(video["segments"]),
+                       file_name=f"transcript_{video['id']}.txt")
     st.write("Each transcript line starts with [start-end] in seconds. Type 3 clips below, "
              "one per line, each under 60 seconds. Examples: `75 - 120` or `1:15 - 2:00`.")
     manual = st.text_area("Clip times", height=100, placeholder="0:13 - 0:40\n2:23 - 2:54\n3:03 - 3:32")
@@ -90,12 +90,33 @@ if st.session_state.get("outputs"):
                                    mime="video/mp4", key=f"dl{i}")
 
 # ----- Housekeeping -----
-with st.expander("Free up space"):
-    size = sum(p.stat().st_size for p in config.TEMP_DIR.rglob("*") if p.is_file()) / 1e6
-    st.write(f"Downloaded videos and temporary files: **{size:.0f} MB** in `{config.TEMP_DIR}`")
-    if st.button("Delete temporary files"):
-        for p in config.TEMP_DIR.iterdir():
-            if p.name in ("cache", "scratch"):
-                continue
-            shutil.rmtree(p) if p.is_dir() else p.unlink()
-        st.success("Deleted. Finished clips in the output folder are kept.")
+def temp_items():
+    """Files in the temp folder we may delete (tool caches and test scripts are kept)."""
+    return [p for p in config.TEMP_DIR.iterdir() if p.name not in ("cache", "scratch")]
+
+
+def size_mb(paths):
+    files = [f for p in paths for f in ([p] if p.is_file() else p.rglob("*")) if f.is_file()]
+    return sum(f.stat().st_size for f in files) / 1e6
+
+
+with st.expander("Free up space", expanded=st.session_state.get("freed") is not None):
+    items = temp_items()
+    videos = len([p for p in items if p.suffix == ".mp4" and not p.stem.startswith("clip_")])
+    if st.session_state.get("freed") is not None:
+        st.success(f"Freed {st.session_state.pop('freed'):.0f} MB. Finished clips in the output folder are kept.")
+    elif not items:
+        st.write("Nothing to delete. The temp folder is empty.")
+    else:
+        st.write(f"Downloaded videos and temporary files: **{size_mb(items):.0f} MB** "
+                 f"({videos} downloaded video{'s' if videos != 1 else ''}) in `{config.TEMP_DIR}`. "
+                 "Finished clips in the output folder are not touched.")
+        if st.button("Delete temporary files"):
+            freed = size_mb(items)
+            for p in items:
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    p.unlink(missing_ok=True)
+            st.session_state.freed = freed
+            st.rerun()

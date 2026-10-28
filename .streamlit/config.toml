@@ -8,3 +8,10 @@ maxUploadSize = 1
 [browser]
 gatherUsageStats = false
 serverAddress = "localhost"
+
+# Plain page: no top bar (Deploy button, menu, "running" animation) and no developer toolbar.
+[ui]
+hideTopBar = true
+
+[client]
+toolbarMode = "minimal"
