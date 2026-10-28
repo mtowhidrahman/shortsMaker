@@ -57,7 +57,9 @@ def _ask(prompt, temperature, progress=print, timeout=120, thinking=None, tries=
         try:
             return client.models.generate_content(model=model, contents=prompt, config=cfg).text
         except Exception as e:
-            busy = any(k in str(e) for k in ("503", "UNAVAILABLE", "504", "DEADLINE", "timed out", "Timeout"))
+            # Busy, too slow, or this model's free limit is used up (each model has its own limit).
+            busy = any(k in str(e) for k in ("503", "UNAVAILABLE", "504", "DEADLINE", "timed out", "Timeout",
+                                             "429", "RESOURCE_EXHAUSTED"))
             if n + 1 == len(tries) or not busy:
                 raise
 
