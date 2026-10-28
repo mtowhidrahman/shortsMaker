@@ -12,6 +12,8 @@ import sys
 import cv2
 import numpy as np
 
+from .report import console
+
 OUT_W, OUT_H = 1080, 1920
 DETECT_EVERY = 3          # run the face detector on every 3rd frame
 DETECT_WIDTH = 640        # the detector looks at frames shrunk to this width: 4x faster than full
@@ -29,14 +31,15 @@ ENCODE_ARGS = ["-threads", "4", "-x264-params", "rc-lookahead=10"]
 
 
 def probe(path):
-    """Width, height, frame rate and start time of the first video stream."""
+    """Width, height, frame rate, start time and length (seconds) of the first video stream."""
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                          "stream=width,height,r_frame_rate,start_time", "-of", "json", str(path)],
+                          "stream=width,height,r_frame_rate,start_time:format=duration", "-of", "json", str(path)],
                          capture_output=True, text=True, check=True).stdout
-    s = json.loads(out)["streams"][0]
+    j = json.loads(out)
+    s = j["streams"][0]
     num, den = s["r_frame_rate"].split("/")
     return (int(s["width"]), int(s["height"]), s["r_frame_rate"], float(num) / float(den),
-            float(s.get("start_time") or 0))
+            float(s.get("start_time") or 0), float(j.get("format", {}).get("duration") or 0))
 
 
 def read_frames(path, w, h):
@@ -56,10 +59,11 @@ def read_frames(path, w, h):
         p.wait()
 
 
-def find_faces(path, w, h, detect_w=None, every=None):
+def find_faces(path, w, h, detect_w=None, every=None, report=None):
     """Pass 1: x-center of the speaker's face per frame (NaN where unknown),
     and the frames where the video cuts to another camera angle.
-    The detector looks at frames shrunk to detect_w pixels wide (faster), every few frames."""
+    The detector looks at frames shrunk to detect_w pixels wide (faster), every few frames.
+    report(i): called every 15 frames with the frame number (for a progress bar)."""
     detect_w, every = min(w, detect_w or DETECT_WIDTH), every or DETECT_EVERY
     dw, dh = detect_w, int(round(h * detect_w / w / 2)) * 2
     back = np.array([w / dw, h / dh, w / dw, h / dh, 1])       # detector size -> frame size
@@ -67,6 +71,8 @@ def find_faces(path, w, h, detect_w=None, every=None):
     found, cuts, last_small, n = {}, [], None, 0
     for i, frame in enumerate(read_frames(path, w, h)):
         n = i + 1
+        if report and i % 15 == 0:
+            report(i)
         small = cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), (64, 36)).astype(np.int16)
         if last_small is not None and np.abs(small - last_small).mean() > SCENE_CUT:
             cuts.append(i)
@@ -143,21 +149,25 @@ def _plan_shot(xs, w, crop_w, fps):
     return np.clip(cam, half, w - half)                 # keep the crop inside the frame
 
 
-def track_crop(src, out, vf=None, progress=print):
+def track_crop(src, out, vf=None, progress=console, name=""):
     """Make a 1080x1920 face-tracked version of src (with its audio).
-    vf: optional extra ffmpeg filter (Step 6 uses it to burn in captions)."""
-    w, h, rate, fps, v_start = probe(src)
+    vf: optional extra ffmpeg filter (Step 6 uses it to burn in captions).
+    name: added to the progress step names ("faces 2", "render 2")."""
+    w, h, rate, fps, v_start, length = probe(src)
+    frames = max(1, int(length * fps))
     crop_w = int(h * 9 / 16) // 2 * 2
     crop_h = h
     if crop_w > w:                                       # very narrow video: crop height instead
         crop_w, crop_h = w // 2 * 2, int(w * 16 / 9) // 2 * 2
 
-    progress("  finding the face...")
-    xs, cuts = find_faces(src, w, h)
+    step = f"faces {name}".strip()
+    progress("  finding the face...", step=step)
+    xs, cuts = find_faces(src, w, h, report=lambda i: progress("  finding the face...", min(1, i / frames), step))
     found = np.mean(~np.isnan(xs[::DETECT_EVERY])) if len(xs) else 0.0
     cam = plan_camera(xs, cuts, w, crop_w, fps)
 
-    progress("  cropping and encoding...")
+    step = f"render {name}".strip()
+    progress("  cropping and encoding...", step=step)
     # -itsoffset keeps the picture at the same time as in the source, so the sound stays in sync.
     cmd = ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
            "-s", f"{OUT_W}x{OUT_H}", "-r", rate, "-itsoffset", f"{v_start:.6f}", "-i", "-", "-i", str(src),
@@ -175,6 +185,8 @@ def track_crop(src, out, vf=None, progress=print):
             x0 = int(round(cam[min(i, len(cam) - 1)] - crop_w / 2))
             x0 = max(0, min(w - crop_w, x0))
             crop = frame[y0:y0 + crop_h, x0:x0 + crop_w]
+            if i % 15 == 0:
+                progress("  cropping and encoding...", min(1, i / len(cam)), step)
             enc.stdin.write(cv2.resize(crop, (OUT_W, OUT_H), interpolation=cv2.INTER_CUBIC).tobytes())
         enc.stdin.close()
     except BrokenPipeError:

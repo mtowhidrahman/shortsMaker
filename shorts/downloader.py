@@ -10,6 +10,8 @@ import numpy as np
 import yt_dlp
 from yt_dlp.extractor.youtube import YoutubeIE
 
+from .report import console
+
 
 def _parse_json3(path):
     """Turn a YouTube json3 caption file into [{start, end, text}] segments (seconds)."""
@@ -44,11 +46,16 @@ def load_whisper():
                         download_root=str(config.WHISPER_DIR))
 
 
-def _whisper_transcript(video_path):
+def _whisper_transcript(video_path, duration=0, progress=console):
     """Fallback when the video has no captions: transcribe the full audio on CPU.
     beam_size=1: 30% faster, same text in tests (the captions use the careful default)."""
     segs, _ = load_whisper().transcribe(load_audio(video_path), language="en", vad_filter=True, beam_size=1)
-    return [{"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip()} for s in segs]
+    out = []
+    for s in segs:
+        out.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip()})
+        if duration:
+            progress("Transcribing audio with Whisper...", min(1, s.end / duration), "transcribe")
+    return out
 
 
 def transcript_text(segments):
@@ -108,7 +115,7 @@ def video_info(url):
     return {"id": vid, "title": r.get("title", vid), "duration": float(r.get("duration") or 0)}
 
 
-def download(url, progress=print):
+def download(url, progress=console):
     """Download video (max 1080p, mp4) and English captions into the temp folder.
     Returns dict with video_path, title, duration, segments, transcript_source.
     If this video was downloaded before, reuse it (fewer YouTube requests = fewer bot checks)."""
@@ -116,14 +123,21 @@ def download(url, progress=print):
     vid = _video_id(url)
     cache = config.TEMP_DIR / f"{vid}_info.json"
     if vid and cache.exists() and (config.TEMP_DIR / f"{vid}.mp4").exists():
-        progress("Using the copy already downloaded in the temp folder.")
+        progress("Using the copy already downloaded in the temp folder.", step="download")
         r = json.loads(cache.read_text(encoding="utf-8"))
         r["video_path"] = config.TEMP_DIR / f"{vid}.mp4"
         return r
 
-    progress("Downloading video and captions...")
+    progress("Downloading video and captions...", step="download")
+
+    def hook(d):   # yt-dlp reports bytes; video and sound are two files, downloaded one after the other
+        total = d.get("total_bytes") or d.get("total_bytes_estimate")
+        if d.get("status") == "downloading" and total:
+            kind = "sound" if d.get("info_dict", {}).get("vcodec") == "none" else "video"
+            progress(f"Downloading {kind}...", min(1, d.get("downloaded_bytes", 0) / total), "download")
+
     try:
-        with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
+        with yt_dlp.YoutubeDL({**YDL_OPTS, "progress_hooks": [hook]}) as ydl:
             info = None
             if vid in _info_cache:   # video_info() already asked YouTube: download from that answer
                 try:
@@ -147,8 +161,9 @@ def download(url, progress=print):
             segments = _parse_json3(sub)
             break
     if not segments:
-        progress("No English captions found. Transcribing audio with Whisper (this takes a while)...")
-        segments, source = _whisper_transcript(video_path), "whisper"
+        progress("No English captions found. Transcribing audio with Whisper (this takes a while)...",
+                 step="transcribe")
+        segments, source = _whisper_transcript(video_path, float(info.get("duration") or 0), progress), "whisper"
 
     (config.TEMP_DIR / f"{vid}_transcript.txt").write_text(transcript_text(segments), encoding="utf-8")
     r = {"id": vid, "title": info.get("title", vid), "duration": float(info.get("duration") or 0),

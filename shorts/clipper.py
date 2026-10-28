@@ -8,6 +8,7 @@ import time
 
 from . import config
 from .downloader import transcript_text
+from .report import console
 
 
 # When Gemini is busy: (model, seconds to wait first). Tries the backup model right away, then both again.
@@ -41,7 +42,7 @@ TRANSCRIPT:
 """
 
 
-def _ask(prompt, temperature, progress=print, timeout=120, thinking=None, tries=BUSY_TRIES):
+def _ask(prompt, temperature, progress=console, timeout=120, thinking=None, tries=BUSY_TRIES):
     """One Gemini request (JSON answer), at most `timeout` seconds per try. If Gemini is busy
     or too slow (common on the free tier), try the backup model and wait a little between tries."""
     from google import genai
@@ -117,7 +118,7 @@ def max_fit(duration, min_len):
     return int(duration * 0.8 // max(min_len, 1))
 
 
-def pick_clips(segments, duration, title="video", progress=print, n=3,
+def pick_clips(segments, duration, title="video", progress=console, n=3,
                min_len=config.DEFAULT_LENGTH[0], max_len=config.DEFAULT_LENGTH[1]):
     """Ask Gemini for the n best clips, each min_len to max_len seconds. Retries once if the
     answer is invalid. Raises ClipError if Gemini is unavailable or still gives bad clips."""
@@ -128,7 +129,7 @@ def pick_clips(segments, duration, title="video", progress=print, n=3,
 
     problems = []
     for attempt in (1, 2):
-        progress(f"Asking Gemini to pick {n} clip{'s' if n != 1 else ''} (attempt {attempt})...")
+        progress(f"Asking Gemini to pick {n} clip{'s' if n != 1 else ''} (attempt {attempt})...", step="pick")
         try:
             clips = json.loads(_ask(prompt, 0.4, progress))
         except json.JSONDecodeError:
@@ -183,7 +184,7 @@ def _numbered(words, start, end):
     return " ".join(out)
 
 
-def fix_edges(windows, min_len, max_len, progress=print):
+def fix_edges(windows, min_len, max_len, progress=console):
     """Ask Gemini where each clip should start and end so it holds whole sentences.
     windows: [(words, ai_start, ai_end)] where words are Whisper words around each clip.
     Returns [(start_word, end_word) or None] per clip; None = no good answer for that clip
@@ -191,7 +192,7 @@ def fix_edges(windows, min_len, max_len, progress=print):
     if not os.environ.get("GEMINI_API_KEY"):
         return [None] * len(windows)
     try:
-        progress("Asking Gemini to end each clip at the end of a sentence...")
+        progress("Asking Gemini to end each clip at the end of a sentence...", step="edges")
         text = "\n\n".join(f"CLIP {n}:\n{_numbered(w, s, e)}" for n, (w, s, e) in enumerate(windows, 1))
         reply = _ask(EDGES_PROMPT.format(min_s=min_len, max_s=max_len, clips=text), 0.2, progress,
                      timeout=45, thinking="low", tries=BUSY_TRIES[:2])   # optional step: don't wait long

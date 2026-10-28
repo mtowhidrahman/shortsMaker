@@ -10,6 +10,7 @@ import streamlit as st
 from shorts.clipper import ClipError, max_fit, parse_manual, pick_clips, save_transcript, suggest_count
 from shorts.cutter import make_clips
 from shorts.downloader import download, transcript_text, video_info
+from progress_view import Reporter, clip_plan, estimate, fmt
 
 st.set_page_config(page_title="Short Video Maker", page_icon="🎬")
 st.title("🎬 Short Video Maker")
@@ -58,39 +59,52 @@ if go and not info:
 
 def run(clips_from_user=None):
     """Download -> pick clips (Gemini, or the user's times) -> cut, captions, face tracking."""
+    # Rough plan for the time estimate; refined once the clips are known.
+    cached = (config.TEMP_DIR / f"{info['id']}.mp4").exists()
+    lengths = ([c["end"] - c["start"] for c in clips_from_user] if clips_from_user
+               else [(lo + hi) / 2] * n)
+    plan = ([("download", 1 if cached else estimate("download"))]
+            + ([] if clips_from_user else [("pick", estimate("pick"))]) + clip_plan(lengths))
+    bars = st.container()
     with st.status("Working... (this takes a few minutes)", expanded=True) as status:
+        progress = Reporter(status, bars, plan, info["duration"])
         try:
-            video = download(url, progress=status.write)
+            video = download(url, progress=progress)
             st.session_state.video = video
             if clips_from_user:
                 clips = clips_from_user
             else:
                 try:
                     clips = pick_clips(video["segments"], video["duration"], video["title"],
-                                       progress=status.write, n=n, min_len=lo, max_len=hi)
+                                       progress=progress, n=n, min_len=lo, max_len=hi)
                 except ClipError as e:
+                    progress.finish()
                     st.session_state.ai_error = str(e)
                     status.update(label="The AI could not pick clips. You can choose them yourself below.",
                                   state="error")
                     return
             for i, c in enumerate(clips, 1):
                 status.write(f"Clip {i}: {c['start']:.1f}s – {c['end']:.1f}s. {c.get('reason', '')}")
+            progress.replan(clip_plan([c["end"] - c["start"] for c in clips]))
             st.session_state.outputs = [str(p) for p in
                                         make_clips(video["video_path"], clips, video["duration"],
-                                                   progress=status.write, min_len=lo, max_len=hi)]
+                                                   progress=progress, min_len=lo, max_len=hi)]
             st.session_state.clips = clips
             st.session_state.pop("ai_error", None)
+            total, steps = progress.finish()
+            st.session_state.timing = (total, steps)
             k = len(st.session_state.outputs)
-            status.update(label=f"Done! Your {k} short{'s are' if k != 1 else ' is'} ready.",
-                          state="complete", expanded=False)
+            status.update(label=f"Done! Your {k} short{'s are' if k != 1 else ' is'} ready "
+                                f"(finished in {fmt(total)}).", state="complete", expanded=False)
             return True
         except Exception as e:  # show a readable message instead of a crash
+            progress.finish()
             status.update(label="Something went wrong.", state="error")
             st.error(str(e))
 
 
 if go:
-    for k in ("outputs", "ai_error", "video", "clips"):
+    for k in ("outputs", "ai_error", "video", "clips", "timing"):
         st.session_state.pop(k, None)
     run()
 
@@ -118,6 +132,10 @@ if st.session_state.get("ai_error") and st.session_state.get("video"):
 if st.session_state.get("outputs"):
     st.subheader("Your shorts")
     st.caption(f"Also saved in: {config.OUTPUT_DIR}")
+    if st.session_state.get("timing"):
+        total, steps = st.session_state.timing
+        st.write(f"⏱️ Finished in **{fmt(total)}** — " +
+                 " · ".join(f"{name} {fmt(sec)}" for name, sec in steps if sec >= 0.5))
     outputs = st.session_state.outputs
     for row in range(0, len(outputs), 3):          # three videos per row
         for col, (i, path) in zip(st.columns(3), list(enumerate(outputs, 1))[row:row + 3]):

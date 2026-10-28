@@ -10,6 +10,7 @@ import sys
 from .captions import captions_for, transcribe_words
 from .clipper import fix_edges
 from .downloader import load_whisper
+from .report import console
 from .tracker import track_crop
 
 OUT_W, OUT_H = 1080, 1920
@@ -112,7 +113,7 @@ def edge_times(words, s, e, duration, max_len):
     return round(start, 2), round(end, 2)
 
 
-def make_clips(video, clips, duration, progress=print,
+def make_clips(video, clips, duration, progress=console,
                min_len=config.MIN_CLIP_SECONDS, max_len=config.MAX_CLIP_SECONDS):
     """Cut every clip, add captions and face tracking, and write output/clip_N.mp4."""
     config.OUTPUT_DIR.mkdir(exist_ok=True)
@@ -126,7 +127,7 @@ def make_clips(video, clips, duration, progress=print,
     windows = []
     clips = sorted(clips, key=lambda c: c["start"])
     for i, c in enumerate(clips, 1):
-        progress(f"Clip {i}: listening for sentences and exact word timing...")
+        progress(f"Clip {i}: listening for sentences and exact word timing...", step=f"listen {i}")
         # Neighbouring clips must not grow into each other.
         prev_end = clips[i - 2]["end"] if i > 1 else 0.0
         next_start = clips[i]["start"] if i < len(clips) else duration
@@ -144,13 +145,13 @@ def make_clips(video, clips, duration, progress=print,
             start, end = edge_times(words, *(pick or sentence_edges(words, ai_start, ai_end, min_len, max_len)),
                                     duration, max_len)
         progress(f"Clip {i}: cutting {start:.1f}s - {end:.1f}s (AI picked {ai_start:.1f}s - {ai_end:.1f}s, "
-                 f"edges by {'Gemini' if pick else 'Whisper'})...")
+                 f"edges by {'Gemini' if pick else 'Whisper'})...", step=f"cut {i}")
         raw = cut(video, start, end, config.TEMP_DIR / f"clip_{i}_raw.mp4")
         ass = config.TEMP_DIR / f"clip_{i}.ass"
         captions_for(words, start, end, ass)
         progress(f"Clip {i}: making it vertical with face tracking and captions...")
         out = config.OUTPUT_DIR / f"clip_{i}.mp4"
-        track_crop(raw, out, vf=f"ass={ass.name}", progress=progress)
+        track_crop(raw, out, vf=f"ass={ass.name}", progress=progress, name=str(i))
         outputs.append(out)
     return outputs
 

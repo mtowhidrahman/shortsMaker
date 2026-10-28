@@ -25,7 +25,7 @@ The user tested the app and everything worked. Do these in order, test and commi
   "Make shorts".
 - **E. Speed (DONE, 3 clips: 125 s -> 53 s):** encode once instead of twice (no intermediate crf16 cut), x264 preset medium → veryfast,
   face detection on smaller frames. Time each stage before and after and report the numbers. Keep RAM low.
-- **F. Progress:** a bar for each stage (download %, clip picking, per clip: captions, face scan, render %),
+- **F. Progress (DONE):** a bar for each stage (download %, clip picking, per clip: captions, face scan, render %),
   an estimated time left, a total timer, and a final "Finished in X" with each stage's time.
 - **G. Copyright:** show the video's license (Creative Commons or Standard) and a credit line for CC videos.
   No tricks to dodge Content ID.
@@ -65,6 +65,15 @@ Note: 640 px *looked* worse in a first test, but that test measured one face tra
 `plan_camera` output per shot instead (Shorts Temp\scratch\prof_e4.py). Centering check on finished clips:
 Shorts Temp\scratch\check_center.py (median offset 0.05–0.07, same as before).
 Full-transcript Whisper (videos without captions) uses beam_size=1: 30% faster, same text.
+
+## Part F: progress reporting
+
+Engine contract (`shorts/report.py`): `progress(text, done=None, step=None)`. `step` names: download, transcribe,
+pick, listen N, edges, cut N, faces N, render N. `progress_view.py` (next to app.py; the only UI module besides app.py):
+`Reporter` draws a Total bar (time so far + left) and a step bar, logs lines into the st.status box, and corrects its
+estimates by real/estimated speed of finished steps. `estimate()` holds the seconds per step measured on this PC.
+Checked with Shorts Temp\scratch	est_progress.py (estimates within ~10 s after the first clip).
+AppTest note: run test scripts with PYTHONIOENCODING=utf-8 (the timing line has an emoji).
 
 ## Project location
 
