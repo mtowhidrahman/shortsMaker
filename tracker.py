@@ -3,6 +3,8 @@
 # Plan:   fill gaps, smooth the positions into calm "camera moves".
 # Pass 2: crop each frame around the planned position, scale to 1080x1920, add the audio.
 # Frames are streamed one at a time through ffmpeg pipes, so memory use stays small.
+import config  # first: sets memory limits before numpy/cv2 load
+
 import json
 import subprocess
 import sys
@@ -10,14 +12,18 @@ import sys
 import cv2
 import numpy as np
 
-import config
-
 OUT_W, OUT_H = 1080, 1920
 DETECT_EVERY = 2          # run the face detector on every 2nd frame
 SMOOTH_SECONDS = 0.6      # how gently the "camera" follows the face (bigger = calmer)
 DEAD_ZONE = 0.12          # ignore face movement smaller than this part of the crop width
 SCENE_CUT = 18            # average pixel change (0-255) that counts as a cut to another camera
                           # (measured: real cuts 22-37, normal movement under 11)
+
+# Low memory: the PC's memory is nearly full from other apps, and extra use makes Windows grow
+# its page file on C:. Fewer threads and a short encoder look-ahead keep ffmpeg small.
+cv2.setNumThreads(4)
+DECODE_ARGS = ["-threads", "2"]
+ENCODE_ARGS = ["-threads", "4", "-x264-params", "rc-lookahead=10"]
 
 
 def probe(path):
@@ -33,7 +39,7 @@ def probe(path):
 
 def read_frames(path, w, h):
     """Yield video frames (BGR numpy arrays) one by one, decoded by ffmpeg."""
-    p = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(path), "-f", "rawvideo",
+    p = subprocess.Popen(["ffmpeg", "-v", "error", *DECODE_ARGS, "-i", str(path), "-f", "rawvideo",
                           "-fps_mode", "passthrough", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)
     size = w * h * 3
     try:
@@ -151,7 +157,7 @@ def track_crop(src, out, vf=None, progress=print):
            "-map", "0:v", "-map", "1:a?"]
     if vf:
         cmd += ["-vf", vf]
-    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "20", *ENCODE_ARGS, "-pix_fmt", "yuv420p",
             "-c:a", "copy", "-movflags", "+faststart", str(out)]
     enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     y0 = (h - crop_h) // 2

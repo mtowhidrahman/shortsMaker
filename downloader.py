@@ -1,5 +1,7 @@
 # Step 2: YouTube link -> video file + English transcript.
 # Transcript comes from YouTube captions; if there are none, Whisper listens to the audio.
+import config  # first: sets memory limits before numpy loads
+
 import json
 import subprocess
 import sys
@@ -7,8 +9,6 @@ import sys
 import numpy as np
 import yt_dlp
 from yt_dlp.extractor.youtube import YoutubeIE
-
-import config
 
 
 def _parse_json3(path):

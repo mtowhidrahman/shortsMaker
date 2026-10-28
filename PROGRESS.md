@@ -17,7 +17,11 @@ The user wants C: to stay at about 11+ GB free, always. They said this clearly a
 - `config.py` redirects TMP/TEMP, HF_HOME, XDG_CACHE_HOME (yt-dlp) and PIP_CACHE_DIR into
   that folder for anything that imports it. Always `import config` first.
 - Keep RAM use low (stream frames one at a time, never load a whole video into memory) so
-  Windows' page file on C: does not grow.
+  Windows' page file on C: does not grow. The PC has 15.4 GB RAM, and other apps (Chrome, VS Code, ChatGPT,
+  Edge) already commit about 23 of the 24.8 GB limit. During Step 5 the page file grew to about 14 GB.
+  Fixes in place: `OPENBLAS_NUM_THREADS=2` in config.py (saves ~470 MB, so **`import config` must be the first
+  import**), `cv2.setNumThreads(4)`, ffmpeg `-threads` + `rc-lookahead=10`. Measured peak for one clip:
+  about 540 MB (was 1.9 GB). Measure peak memory for any new heavy step (Whisper in Step 6).
 - Check C: free space before and after each step and tell the user.
 - Install with `pip install --no-cache-dir`. No winget or global installs.
 - Python 3.12 itself is on C: (installed before this project). That is allowed.
@@ -75,7 +79,8 @@ The user wants C: to stay at about 11+ GB free, always. They said this clearly a
   error message. Never use the user's browser cookies (the user worries about their account).
 - faster-whisper + PyAV 19 mismatch (`metadata_errors` TypeError) → never pass file paths to
   Whisper. Pass `downloader.load_audio(path, start, end)` (numpy) instead.
-- Installing both `opencv-python` and `opencv-contrib-python` breaks cv2 → only `opencv-contrib-python`.
+- Installing two OpenCV packages at once breaks cv2 → only `opencv-python-headless==4.14.0.94` (YuNet works,
+  no GUI parts needed). Swapped from opencv-contrib-python 5.0 to save space.
 - MediaPipe's BlazeFace (short range) found faces in only about 40% of frames (it missed small faces on wide shots) →
   switched to OpenCV YuNet (100%) and uninstalled MediaPipe. `flatbuffers` must stay (needed by onnxruntime for Whisper VAD).
 - Audience faces are as confident as the speaker's → choose the speaker per shot by track (see tracker.py), not per frame.

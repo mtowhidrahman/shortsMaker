@@ -1,6 +1,11 @@
 # Shared settings. Everything heavy lives inside this project folder (E: drive), not on C:.
+# Import this module FIRST in every file (before numpy/cv2), so the limits below take effect.
 import os
 from pathlib import Path
+
+# Low memory: numpy's math library reserves ~30 MB per CPU core (~470 MB on this 16-core PC)
+# that we never use. The PC's memory is nearly full, and extra use grows Windows' page file on C:.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
 
 ROOT = Path(__file__).resolve().parent
 # All scratch files (downloads, cut pieces, caches, test scripts) go to a separate folder on E:.
