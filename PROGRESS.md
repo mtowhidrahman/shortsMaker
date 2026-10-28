@@ -3,26 +3,22 @@
 Last updated: 2026-10-28. Steps 1–4 are done and committed in git. **Next: Step 5 (face tracking).**
 Wait for the user to say "next" before starting Step 5.
 
-## FIRST THING after the project folder was moved
+## Project location
 
-The user moved this folder from `E:\Personal Work\Programming\Shorts` to a new place. The
-`.venv` folder stores its old path and no longer works. Do this first:
+The project stays at `E:\Personal Work\Programming\Shorts` (the user decided not to move it).
+If it is ever moved, run `powershell -ExecutionPolicy Bypass -File setup.ps1` first (it rebuilds `.venv`).
 
-1. Run `powershell -ExecutionPolicy Bypass -File setup.ps1` in the project folder.
-   It deletes and rebuilds `.venv` (Python 3.12, `--no-cache-dir`), checks the face model,
-   checks ffmpeg in `tools\ffmpeg`, and loads Whisper. It must print `Setup OK`.
-2. Check that the old C: caches did not come back: `C:\Users\USER\.cache\huggingface`
-   and `C:\Users\USER\AppData\Local\pip` should not exist.
-3. Then tell the user it worked and ask before starting Step 5.
+## Hard rule from the user: never use space on C:
 
-## Hard rule from the user: keep C: free
-
-The user's C: drive is almost full (about 4–5 GB free). They said this clearly and more than once.
-- Everything the project creates or downloads must stay inside the project folder: models,
-  caches, temp files, downloaded videos, generated clips, and Claude's own test scripts
-  (put those in `temp/`, not in the system Temp/scratchpad).
-- `config.py` already redirects TMP/TEMP, HF_HOME, XDG_CACHE_HOME (yt-dlp) and PIP_CACHE_DIR
-  into `temp/` for anything that imports it. Always `import config` first.
+The user wants C: to stay at about 11+ GB free, always. They said this clearly and more than once.
+- **Scratch folder: `E:\Personal Work\Programming\Shorts Temp`** (`config.TEMP_DIR`). Downloads,
+  cut pieces, tool caches and Claude's own test scripts/images go there (scripts in `Shorts Temp\scratch`),
+  never in the system Temp or the Claude scratchpad on C:. Models and tools stay in the project folder.
+- `config.py` redirects TMP/TEMP, HF_HOME, XDG_CACHE_HOME (yt-dlp) and PIP_CACHE_DIR into
+  that folder for anything that imports it. Always `import config` first.
+- Keep RAM use low (stream frames one at a time, never load a whole video into memory) so
+  Windows' page file on C: does not grow.
+- Check C: free space before and after each step and tell the user.
 - Install with `pip install --no-cache-dir`. No winget or global installs.
 - Python 3.12 itself is on C: (installed before this project). That is allowed.
 - The user said no to Windows changes (moving the page file, turning off hibernate). Don't bring them up again.
@@ -37,7 +33,7 @@ The user's C: drive is almost full (about 4–5 GB free). They said this clearly
 | ffmpeg / ffprobe | `tools/ffmpeg/` (gyan.dev 9.0.2 full build). `config.py` adds it to PATH |
 | Whisper model | `models/whisper/` (faster-whisper `base`, int8, CPU) |
 | Face model | `models/blaze_face_short_range.tflite` (MediaPipe Tasks FaceDetector) |
-| Downloads, cache, intermediates | `temp/` |
+| Downloads, cache, intermediates | `E:\Personal Work\Programming\Shorts Temp` |
 | Finished clips | `output/clip_N.mp4` |
 | Gemini key | User env var `GEMINI_API_KEY` (already set). If a shell doesn't see it, load it with `[Environment]::GetEnvironmentVariable("GEMINI_API_KEY","User")`. Never print it |
 
@@ -60,7 +56,7 @@ The user's C: drive is almost full (about 4–5 GB free). They said this clearly
 ## Test data (avoid re-downloading: the user worries about YouTube blocks)
 
 - Test video: https://www.youtube.com/watch?v=NiKtZgImdlY ("The danger of silence", Clint Smith, 4:23,
-  720p H.264). Already cached in `temp/` and moves with the folder. **Do not download it again.**
+  720p H.264). Already cached in `Shorts Temp`. **Do not download it again.**
   Keep download tests to a minimum.
 - Gemini's picks for it (reuse them instead of calling Gemini again): 13.1–39.7, 143.2–173.7, 182.9–212.0.
 - In clip 2 the speaker stands off-center, so the center crop cuts him off. Good test for Step 5.

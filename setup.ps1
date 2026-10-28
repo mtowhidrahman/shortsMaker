@@ -4,9 +4,10 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-# Keep pip's temporary files inside the project too.
-New-Item -ItemType Directory -Force temp | Out-Null
-$env:TMP = $env:TEMP = (Resolve-Path temp).Path
+# Keep pip's temporary files on E: too (same folder as TEMP_DIR in config.py).
+$tmp = "E:\Personal Work\Programming\Shorts Temp"
+New-Item -ItemType Directory -Force $tmp | Out-Null
+$env:TMP = $env:TEMP = $tmp
 
 # 1. Fresh Python 3.12 environment in .venv (an old one breaks when the folder moves).
 if (Test-Path .venv) { Remove-Item -Recurse -Force .venv }
