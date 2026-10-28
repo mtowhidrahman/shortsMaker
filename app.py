@@ -34,6 +34,18 @@ if url:
 if info:
     minutes, seconds = divmod(int(info["duration"]), 60)
     st.write(f"**{info['title']}** · {minutes}:{seconds:02d} long")
+    # Copyright: show how this video may be reused (no tricks to hide clips from YouTube's checks).
+    if info["license"] == "cc":
+        st.success("✅ Creative Commons: you may reuse this video if you credit the creator. "
+                   "Paste this in your post's description:")
+        st.code(f"Source: \"{info['title']}\" by {info['channel'] or 'the creator'} "
+                f"(https://youtu.be/{info['id']}), licensed under CC BY.", language=None)
+    elif info["license"] == "standard":
+        st.info("ℹ️ Standard YouTube license: posting clips of this video needs the owner's permission "
+                "(unless it is your own video). Tip: in YouTube search, choose Filters → Creative Commons "
+                "to find videos you may reuse.")
+    else:
+        st.caption("License unknown for this saved copy: check it on YouTube before posting clips.")
     lo, hi = st.slider("Clip length (seconds)", int(config.MIN_CLIP_SECONDS), int(config.MAX_CLIP_SECONDS),
                        config.DEFAULT_LENGTH, step=5,
                        help="Each clip will be between these lengths. It always ends at the end of a sentence.")

@@ -3,7 +3,8 @@
 Turns a YouTube video into vertical short clips (9:16) with face tracking and captions.
 Runs only on your computer and costs nothing.
 
-> Use it only on your own videos, or videos you have permission to use.
+> Use it only on your own videos, or videos you have permission to use. After you paste a link, the page
+> shows the video's license. Creative Commons videos may be reused with credit, and the page gives you the credit line.
 
 Remember always, I dont Want C drive of my PC to be taken so much space
 

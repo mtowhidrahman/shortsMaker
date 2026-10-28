@@ -27,7 +27,7 @@ The user tested the app and everything worked. Do these in order, test and commi
   face detection on smaller frames. Time each stage before and after and report the numbers. Keep RAM low.
 - **F. Progress (DONE):** a bar for each stage (download %, clip picking, per clip: captions, face scan, render %),
   an estimated time left, a total timer, and a final "Finished in X" with each stage's time.
-- **G. Copyright:** show the video's license (Creative Commons or Standard) and a credit line for CC videos.
+- **G. Copyright (DONE):** show the video's license (Creative Commons or Standard) and a credit line for CC videos.
   No tricks to dodge Content ID.
 - **H. Hosting:** the user said "not right now". Don't build anything.
 
@@ -74,6 +74,12 @@ pick, listen N, edges, cut N, faces N, render N. `progress_view.py` (next to app
 estimates by real/estimated speed of finished steps. `estimate()` holds the seconds per step measured on this PC.
 Checked with Shorts Temp\scratch	est_progress.py (estimates within ~10 s after the first clip).
 AppTest note: run test scripts with PYTHONIOENCODING=utf-8 (the timing line has an emoji).
+
+## Part G: license
+
+`downloader._rights(info)` -> {"channel", "license": "cc" | "standard" | "unknown"} (yt-dlp's `license` field is set
+only for Creative Commons videos). It is stored in `{id}_info.json`; copies saved before Part G show "unknown".
+The page shows a green box and a credit line for CC, a blue note for standard, and a small caption for unknown.
 
 ## Project location
 

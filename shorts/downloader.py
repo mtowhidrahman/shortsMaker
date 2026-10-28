@@ -95,8 +95,20 @@ def _friendly(e):
     return RuntimeError(f"Could not read the video: {e}")
 
 
+def _rights(info):
+    """Who made the video and how it may be reused: {"channel", "license"}.
+    license: "cc" (Creative Commons: reuse allowed with credit), "standard" (YouTube's normal
+    license: you need the owner's permission) or "unknown" (copies saved by older versions)."""
+    if "license" in info and info["license"] in ("cc", "standard", "unknown"):   # our own saved notes
+        return {"channel": info.get("channel", ""), "license": info["license"]}
+    lic = str(info.get("license") or "")
+    return {"channel": info.get("channel") or info.get("uploader") or "",
+            "license": "cc" if "creative commons" in lic.lower() else "standard"}
+
+
 def video_info(url):
-    """Title and length of a video without downloading it: {"id", "title", "duration"}.
+    """Title, length and license of a video without downloading it:
+    {"id", "title", "duration", "channel", "license"}.
     Uses the downloaded copy's notes if there is one (then YouTube is not asked at all)."""
     vid = _video_id(url)
     if not vid:
@@ -104,6 +116,7 @@ def video_info(url):
     cache = config.TEMP_DIR / f"{vid}_info.json"
     if cache.exists() and (config.TEMP_DIR / f"{vid}.mp4").exists():
         r = json.loads(cache.read_text(encoding="utf-8"))
+        r.setdefault("license", "unknown")
     else:
         if vid not in _info_cache:
             try:
@@ -112,7 +125,7 @@ def video_info(url):
             except yt_dlp.utils.DownloadError as e:
                 raise _friendly(e) from e
         r = _info_cache[vid]
-    return {"id": vid, "title": r.get("title", vid), "duration": float(r.get("duration") or 0)}
+    return {"id": vid, "title": r.get("title", vid), "duration": float(r.get("duration") or 0), **_rights(r)}
 
 
 def download(url, progress=console):
@@ -167,7 +180,7 @@ def download(url, progress=console):
 
     (config.TEMP_DIR / f"{vid}_transcript.txt").write_text(transcript_text(segments), encoding="utf-8")
     r = {"id": vid, "title": info.get("title", vid), "duration": float(info.get("duration") or 0),
-         "segments": segments, "transcript_source": source}
+         "segments": segments, "transcript_source": source, **_rights(info)}
     (config.TEMP_DIR / f"{vid}_info.json").write_text(json.dumps(r), encoding="utf-8")
     return {**r, "video_path": video_path}
 
