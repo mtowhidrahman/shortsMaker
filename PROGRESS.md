@@ -1,7 +1,8 @@
 # Progress notes (for Claude: read this after CLAUDE.md)
 
-Last updated: 2026-10-28. Steps 1–6 are done and committed in git. **Next: Step 7 (Streamlit app).**
-Wait for the user to say "next" before starting Step 7.
+Last updated: 2026-10-28. **All 7 steps are done** and committed in git. The app works end to end.
+Start it with `start.bat` (or `.venv\Scripts\python.exe -m streamlit run app.py`).
+Any further work is fixes or tweaks the user asks for. Keep following the C: rules below.
 
 ## Project location
 
@@ -98,7 +99,14 @@ The user wants C: to stay at about 11+ GB free, always. They said this clearly a
   H.264/AAC. Always read frames through an ffmpeg pipe, not `cv2.VideoCapture`.
 - Caption start times are late, so clips start 0.5 s early. Caption end times are already late, so no end padding.
 
-## Plan for the next steps
+## Step 7 (done)
 
-- Step 7 `app.py`: Streamlit page with link → button → progress → 3 downloads, plus the manual fallback
-  (save the transcript, paste timestamps).
+- `app.py`: link + "Make 3 shorts" (always enabled; a warning if the link is empty) → `st.status` progress →
+  3 `st.video` + download buttons. On ClipError: a warning, "Save transcript" (→ output/transcript_ID.txt),
+  "Download transcript", a text area for times → `parse_manual` → `run(clips_from_user)` → `st.rerun()`.
+  "Free up space" expander deletes TEMP_DIR contents except `cache` and `scratch`.
+- `.streamlit/config.toml`: headless, localhost only, no usage stats → no `~/.streamlit` on C: (verified).
+- `start.bat`: opens the browser and runs streamlit.
+- Tested with `streamlit.testing.v1.AppTest` (Shorts Temp\scratch\test_app.py, scenarios `ai` and `manual`)
+  and a real server (health ok, listens on 127.0.0.1 only). The Chrome extension was not connected, so there was no
+  visual browser check. The user allows Chrome use.

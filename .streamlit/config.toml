@@ -1,0 +1,10 @@
+# Local only, no usage statistics, no first-run e-mail prompt (which would write files to C:).
+[server]
+headless = true
+address = "localhost"
+port = 8501
+maxUploadSize = 1
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
