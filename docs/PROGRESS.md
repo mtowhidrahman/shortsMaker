@@ -75,6 +75,14 @@ estimates by real/estimated speed of finished steps. `estimate()` holds the seco
 Checked with Shorts Temp\scratch	est_progress.py (estimates within ~10 s after the first clip).
 AppTest note: run test scripts with PYTHONIOENCODING=utf-8 (the timing line has an emoji).
 
+## Gemini speed (2026-10-30)
+
+The first real run of picking at the new lengths worked (3 clips at 20–45 s, Gemini edges correct), but "AI picks the clips"
+took 6 min: gemini-3.8-flash was overloaded (503, or about 100 s per answer even with low thinking). Fix: `GEMINI_LITE_MODEL`
+(gemini-3.5-flash-lite, which answers in 2–5 s with valid picks) is the 3rd try; picks and edges use thinking_level "low"
+and 30 s per try (Google's minimum deadline is 10 s; a too-slow answer comes back as 504, which counts as busy).
+Order: main -> backup -> lite -> main (5 s) -> lite (5 s); the edge check tries the first 3 only.
+
 ## Part G: license
 
 `downloader._rights(info)` -> {"channel", "license": "cc" | "standard" | "unknown"} (yt-dlp's `license` field is set

@@ -55,6 +55,7 @@ FACE_MODEL = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 # Gemini model for picking clips (free tier). Key is read from the GEMINI_API_KEY environment variable.
 GEMINI_MODEL = "gemini-3.8-flash"
 GEMINI_BACKUP_MODEL = "gemini-3.7-flash"   # also free; used when the main model is busy
+GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"  # free, answers in seconds; used when both are busy
 # Clip count and length are chosen on the page; these are the limits and defaults.
 MAX_CLIPS = 10
 MIN_CLIP_SECONDS = 15.0       # shortest clip the length slider allows

@@ -11,9 +11,10 @@ from .downloader import transcript_text
 from .report import console
 
 
-# When Gemini is busy: (model, seconds to wait first). Tries the backup model right away, then both again.
-BUSY_TRIES = ((config.GEMINI_MODEL, 0), (config.GEMINI_BACKUP_MODEL, 0),
-              (config.GEMINI_MODEL, 5), (config.GEMINI_BACKUP_MODEL, 10))
+# When Gemini is busy or slow: (model, seconds to wait first). Main model, backup, the fast lite
+# model, then main and lite again after a short wait.
+BUSY_TRIES = ((config.GEMINI_MODEL, 0), (config.GEMINI_BACKUP_MODEL, 0), (config.GEMINI_LITE_MODEL, 0),
+              (config.GEMINI_MODEL, 5), (config.GEMINI_LITE_MODEL, 5))
 
 
 class ClipError(Exception):
@@ -131,7 +132,9 @@ def pick_clips(segments, duration, title="video", progress=console, n=3,
     for attempt in (1, 2):
         progress(f"Asking Gemini to pick {n} clip{'s' if n != 1 else ''} (attempt {attempt})...", step="pick")
         try:
-            clips = json.loads(_ask(prompt, 0.4, progress))
+            # Low thinking and 30 s per try: when a model is overloaded it can take minutes, while the
+            # lite model (tried next) answers in seconds.
+            clips = json.loads(_ask(prompt, 0.4, progress, timeout=30, thinking="low"))
         except json.JSONDecodeError:
             problems = ["answer was not valid JSON"]
         except Exception as e:  # network error, rate limit, bad key...
@@ -195,7 +198,7 @@ def fix_edges(windows, min_len, max_len, progress=console):
         progress("Asking Gemini to end each clip at the end of a sentence...", step="edges")
         text = "\n\n".join(f"CLIP {n}:\n{_numbered(w, s, e)}" for n, (w, s, e) in enumerate(windows, 1))
         reply = _ask(EDGES_PROMPT.format(min_s=min_len, max_s=max_len, clips=text), 0.2, progress,
-                     timeout=45, thinking="low", tries=BUSY_TRIES[:2])   # optional step: don't wait long
+                     timeout=30, thinking="low", tries=BUSY_TRIES[:3])   # optional step: don't wait long
         answer = {int(a["clip"]): (int(a["start_word"]), int(a["end_word"])) for a in json.loads(reply)}
     except Exception as e:  # rate limit, no internet, odd answer: fall back to the rules
         progress(f"Gemini could not check the clip edges ({str(e)[:80]}), using Whisper's sentence marks.")
