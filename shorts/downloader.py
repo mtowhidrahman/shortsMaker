@@ -3,6 +3,7 @@
 from . import config  # first: sets memory limits before numpy loads
 
 import json
+import re
 import subprocess
 import sys
 
@@ -79,6 +80,7 @@ YDL_OPTS = {
     "quiet": True,
     "noprogress": True,
     "no_warnings": True,
+    "no_color": True,                # plain error text (no colour codes on the page)
 }
 _info_cache = {}   # video id -> YouTube's info from video_info(), so download() doesn't ask again
 
@@ -89,10 +91,32 @@ def _video_id(url):
 
 def _friendly(e):
     """A readable error for the page."""
-    if "not a bot" in str(e):
+    text = re.sub(r"\x1b\[[0-9;]*m", "", str(e)).replace("ERROR: ", "").strip()
+    if "not a bot" in text:
         return RuntimeError("YouTube is asking to confirm you are not a bot. This is usually "
                             "temporary: wait a while and try again.")
-    return RuntimeError(f"Could not read the video: {e}")
+    if "429" in text or "Too Many Requests" in text:
+        return RuntimeError("YouTube says there were too many requests from this computer. This is "
+                            "temporary: wait an hour or so and try again.")
+    return RuntimeError(f"Could not read the video: {text}")
+
+
+class _Messages:
+    """Collects yt-dlp's messages instead of printing them, so problems can be explained on the page."""
+    def __init__(self):
+        self.errors, self.warnings = [], []
+
+    def debug(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        self.warnings.append(msg)
+
+    def error(self, msg):
+        self.errors.append(msg)
 
 
 def _rights(info):
@@ -149,8 +173,12 @@ def download(url, progress=console):
             kind = "sound" if d.get("info_dict", {}).get("vcodec") == "none" else "video"
             progress(f"Downloading {kind}...", min(1, d.get("downloaded_bytes", 0) / total), "download")
 
+    # ignoreerrors: if YouTube refuses the captions (e.g. "429 Too Many Requests"), still download
+    # the video; Whisper then writes the transcript. Real failures are caught below.
+    messages = _Messages()
     try:
-        with yt_dlp.YoutubeDL({**YDL_OPTS, "progress_hooks": [hook]}) as ydl:
+        with yt_dlp.YoutubeDL({**YDL_OPTS, "progress_hooks": [hook], "logger": messages,
+                               "ignoreerrors": True}) as ydl:
             info = None
             if vid in _info_cache:   # video_info() already asked YouTube: download from that answer
                 try:
@@ -162,10 +190,11 @@ def download(url, progress=console):
     except yt_dlp.utils.DownloadError as e:
         raise _friendly(e) from e
 
+    video_path = config.TEMP_DIR / f"{(info or {}).get('id', vid)}.mp4"
+    if not info or not video_path.exists():
+        raise _friendly(" ".join(messages.errors) or "the download failed for an unknown reason")
     vid = info["id"]
-    video_path = config.TEMP_DIR / f"{vid}.mp4"
-    if not video_path.exists():
-        raise RuntimeError("Download finished but the video file was not found.")
+    refused = any("subtitles" in m for m in messages.errors + messages.warnings)
 
     segments, source = [], "youtube captions"
     for lang in YDL_OPTS["subtitleslangs"]:
@@ -174,7 +203,9 @@ def download(url, progress=console):
             segments = _parse_json3(sub)
             break
     if not segments:
-        progress("No English captions found. Transcribing audio with Whisper (this takes a while)...",
+        progress("YouTube did not give the captions this time (too many requests), so Whisper is writing "
+                 "the transcript instead..." if refused else
+                 "No English captions found. Transcribing audio with Whisper (this takes a while)...",
                  step="transcribe")
         segments, source = _whisper_transcript(video_path, float(info.get("duration") or 0), progress), "whisper"
 

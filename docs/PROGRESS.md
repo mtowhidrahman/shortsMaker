@@ -83,6 +83,14 @@ took 6 min: gemini-3.8-flash was overloaded (503, or about 100 s per answer even
 and 30 s per try (Google's minimum deadline is 10 s; a too-slow answer comes back as 504, which counts as busy).
 Order: main -> backup -> lite -> main (5 s) -> lite (5 s); the edge check tries the first 3 only.
 
+## YouTube 429 on captions (2026-10-30)
+
+The user got "Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests", and the whole download
+stopped. Now `download()` runs yt-dlp with `ignoreerrors=True` and a `_Messages` logger: a refused caption request
+only means Whisper writes the transcript. A real failure (no info or no mp4) still raises `_friendly(...)`, which removes
+colour codes and explains 429 / bot checks. Tested by making `YoutubeDL.dl` fail for subtitles (zoo video) and
+with a made-up video id.
+
 ## Part G: license
 
 `downloader._rights(info)` -> {"channel", "license": "cc" | "standard" | "unknown"} (yt-dlp's `license` field is set
