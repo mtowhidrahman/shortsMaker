@@ -103,7 +103,7 @@ with a made-up video id.
 - Downloads use `on_click="ignore"` (no rerun). The last results are in output/results.json and reload in a new session.
   The user's auto-playing video is the browser's "open this file type automatically" setting (told them how to clear it).
 - Watermark: `captions.write_ass(..., watermark, corner)`: style "Watermark", Arial bold 54, 25% see-through, bottom-left
-  (alignment 1) or bottom-right (3), MarginV 330 (just below the captions).
+  (alignment 1) or bottom-right (3), MarginV 50 (close to the bottom edge, as the user asked).
 - Not tested in a real browser (the Chrome extension is not connected); tested with AppTest (Shorts Temp\scratch	est_app3.py).
 
 ## Part G: license

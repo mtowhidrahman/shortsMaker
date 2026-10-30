@@ -25,7 +25,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Caption,Arial,112,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,9,4,2,70,70,460,1
-Style: Watermark,Arial,54,&H40FFFFFF,&H40FFFFFF,&H60000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,1,{wm_align},60,60,330,1
+Style: Watermark,Arial,54,&H40FFFFFF,&H40FFFFFF,&H60000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,1,{wm_align},50,50,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -77,7 +77,7 @@ def write_ass(words, path, watermark="", corner="right", length=0.0):
     """Write the subtitle file. Each chunk stays on screen until the next one starts
     (if the gap is short), so the captions don't flicker.
     watermark: optional text shown the whole time (length seconds) in the bottom-left or
-    bottom-right corner, just below the captions, smaller and a little see-through."""
+    bottom-right corner, close to the bottom edge, smaller and a little see-through."""
     chunks = group_words(words)
     lines = []
     for i, c in enumerate(chunks):
