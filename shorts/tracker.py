@@ -8,6 +8,7 @@ from . import config  # first: sets memory limits before numpy/cv2 load
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -191,6 +192,11 @@ def track_crop(src, out, vf=None, progress=console, name=""):
         enc.stdin.close()
     except BrokenPipeError:
         pass
+    except BaseException:       # stopped (the Cancel button) or failed: no half-written clip left behind
+        enc.kill()
+        enc.wait()
+        Path(out).unlink(missing_ok=True)
+        raise
     err = enc.stderr.read().decode(errors="replace")
     if enc.wait() != 0:
         raise RuntimeError(f"ffmpeg failed while encoding:\n{err[-1500:]}")

@@ -15,7 +15,9 @@ Remember always, I dont Want C drive of my PC to be taken so much space
 
 1. Paste a YouTube link. The page shows the video's title and length and suggests a number of clips.
 2. Choose the clip length (15 to 90 seconds, default 60–90) and how many clips (1 to 10).
-3. Click **Make shorts**. It takes a few minutes (more clips take longer).
+   Optional: type a watermark (for example your channel name) and choose the bottom corner for it.
+3. Click **Make shorts**. It takes a few minutes (more clips take longer). Each clip appears with a
+   download button as soon as it is ready. **Cancel** stops the rest; finished clips stay.
 4. Watch and download the clips on the page. They are also saved in the `output` folder
    (the next run replaces them, so download the ones you want to keep).
 5. If the AI can't pick clips (no key, the free limit is reached, or Gemini is busy), the page lets you

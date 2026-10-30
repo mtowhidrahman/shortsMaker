@@ -114,8 +114,11 @@ def edge_times(words, s, e, duration, max_len):
 
 
 def make_clips(video, clips, duration, progress=console,
-               min_len=config.MIN_CLIP_SECONDS, max_len=config.MAX_CLIP_SECONDS):
-    """Cut every clip, add captions and face tracking, and write output/clip_N.mp4."""
+               min_len=config.MIN_CLIP_SECONDS, max_len=config.MAX_CLIP_SECONDS,
+               watermark="", corner="right", on_clip=None):
+    """Cut every clip, add captions (and the optional watermark text) and face tracking,
+    and write output/clip_N.mp4. on_clip(i, path) is called as soon as each clip is
+    finished, so the page can offer it for download while the next one is made."""
     config.OUTPUT_DIR.mkdir(exist_ok=True)
     for old in config.OUTPUT_DIR.glob("clip_*.mp4"):   # clips from the last run (they'd be overwritten
         try:                                            # anyway; extra ones would only confuse)
@@ -148,11 +151,13 @@ def make_clips(video, clips, duration, progress=console,
                  f"edges by {'Gemini' if pick else 'Whisper'})...", step=f"cut {i}")
         raw = cut(video, start, end, config.TEMP_DIR / f"clip_{i}_raw.mp4")
         ass = config.TEMP_DIR / f"clip_{i}.ass"
-        captions_for(words, start, end, ass)
+        captions_for(words, start, end, ass, watermark, corner)
         progress(f"Clip {i}: making it vertical with face tracking and captions...")
         out = config.OUTPUT_DIR / f"clip_{i}.mp4"
         track_crop(raw, out, vf=f"ass={ass.name}", progress=progress, name=str(i))
         outputs.append(out)
+        if on_clip:
+            on_clip(i, out)
     return outputs
 
 

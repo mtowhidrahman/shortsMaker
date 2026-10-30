@@ -91,6 +91,21 @@ only means Whisper writes the transcript. A real failure (no info or no mp4) sti
 colour codes and explains 429 / bot checks. Tested by making `YoutubeDL.dl` fail for subtitles (zoo video) and
 with a made-up video id.
 
+## User bug fixes (2026-10-30): cancel, downloads, working view, watermark
+
+- app.py has two views in fixed areas (`main`, `results_area`, `space_area` = st.empty()). "Make shorts" saves `state.job`
+  and reruns. The working view shows only a summary, a Cancel button, the progress and each finished clip (`on_clip` callback
+  of make_clips). Cancel = a rerun: Streamlit stops the running script with StopException (a BaseException) at the next st call.
+  The next run sees `job["started"]` and says "Stopped. N of M clips were finished". tracker.track_crop kills ffmpeg and
+  deletes the half-written clip on any BaseException (tested: clip 1 kept, clip 2 removed, no ffmpeg left).
+- Widget values are re-assigned at the top of every run (`state[key] = state[key]`) because Streamlit drops the state of
+  widgets that are not drawn (the working view draws none).
+- Downloads use `on_click="ignore"` (no rerun). The last results are in output/results.json and reload in a new session.
+  The user's auto-playing video is the browser's "open this file type automatically" setting (told them how to clear it).
+- Watermark: `captions.write_ass(..., watermark, corner)`: style "Watermark", Arial bold 54, 25% see-through, bottom-left
+  (alignment 1) or bottom-right (3), MarginV 330 (just below the captions).
+- Not tested in a real browser (the Chrome extension is not connected); tested with AppTest (Shorts Temp\scratch	est_app3.py).
+
 ## Part G: license
 
 `downloader._rights(info)` -> {"channel", "license": "cc" | "standard" | "unknown"} (yt-dlp's `license` field is set

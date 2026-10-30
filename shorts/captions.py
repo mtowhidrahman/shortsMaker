@@ -25,6 +25,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Caption,Arial,112,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,9,4,2,70,70,460,1
+Style: Watermark,Arial,54,&H40FFFFFF,&H40FFFFFF,&H60000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,1,{wm_align},60,60,330,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -72,9 +73,11 @@ def _clean(word):
     return word.replace("{", "(").replace("}", ")").replace("\\", "/")
 
 
-def write_ass(words, path):
+def write_ass(words, path, watermark="", corner="right", length=0.0):
     """Write the subtitle file. Each chunk stays on screen until the next one starts
-    (if the gap is short), so the captions don't flicker."""
+    (if the gap is short), so the captions don't flicker.
+    watermark: optional text shown the whole time (length seconds) in the bottom-left or
+    bottom-right corner, just below the captions, smaller and a little see-through."""
     chunks = group_words(words)
     lines = []
     for i, c in enumerate(chunks):
@@ -86,7 +89,11 @@ def write_ass(words, path):
         end = max(end, start + 0.25)
         text = " ".join(_clean(w["word"]) for w in c).upper()
         lines.append(f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{text}")
-    path.write_text(ASS_HEADER + "\n".join(lines) + "\n", encoding="utf-8")
+    if watermark.strip():
+        end = max(length, max((w["end"] for w in words), default=0.0)) + 1
+        lines.append(f"Dialogue: 1,{_ts(0)},{_ts(end)},Watermark,,0,0,0,,{_clean(watermark.strip())}")
+    header = ASS_HEADER.replace("{wm_align}", "1" if corner == "left" else "3")   # 1/3 = bottom left/right
+    path.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
     return path
 
 
@@ -97,12 +104,12 @@ def make_captions(clip_path, ass_path, model=None):
     return len(words)
 
 
-def captions_for(words, start, end, ass_path):
-    """Captions for the part [start, end] of the video, from words already transcribed
-    (times in video seconds). Times in the .ass file are relative to the clip start."""
+def captions_for(words, start, end, ass_path, watermark="", corner="right"):
+    """Captions (and the optional watermark) for the part [start, end] of the video, from words
+    already transcribed (times in video seconds). Times in the .ass file start at the clip start."""
     inside = [dict(w, start=w["start"] - start, end=min(w["end"], end) - start)
               for w in words if w["start"] >= start - 0.05 and w["start"] < end]
-    write_ass(inside, ass_path)
+    write_ass(inside, ass_path, watermark, corner, end - start)
     return len(inside)
 
 
