@@ -24,7 +24,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,Arial,112,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,9,4,2,70,70,460,1
+Style: Caption,Arial,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,8,3,2,70,70,330,1
 Style: Watermark,Arial,54,&H40FFFFFF,&H40FFFFFF,&H60000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,1,{wm_align},50,50,50,1
 
 [Events]
