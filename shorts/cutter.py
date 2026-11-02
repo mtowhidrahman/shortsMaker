@@ -115,25 +115,29 @@ def edge_times(words, s, e, duration, max_len):
 
 def make_clips(video, clips, duration, progress=console,
                min_len=config.MIN_CLIP_SECONDS, max_len=config.MAX_CLIP_SECONDS,
-               watermark="", corner="right", on_clip=None):
+               watermark="", corner="right", on_clip=None, caption=None, numbers=None):
     """Cut every clip, add captions (and the optional watermark text) and face tracking,
-    and write output/clip_N.mp4. on_clip(i, path) is called as soon as each clip is
-    finished, so the page can offer it for download while the next one is made."""
+    and write output/clip_N.mp4. on_clip(i, path, clip) is called as soon as each clip is
+    finished (clip: the AI's clip info with the real start/end), so the page can offer it
+    for download while the next one is made.
+    numbers: the clip numbers to write (to remake one clip); other clips are then kept."""
     config.OUTPUT_DIR.mkdir(exist_ok=True)
-    for old in config.OUTPUT_DIR.glob("clip_*.mp4"):   # clips from the last run (they'd be overwritten
-        try:                                            # anyway; extra ones would only confuse)
-            old.unlink()
-        except OSError:                                 # open in a video player: leave it
-            pass
+    if numbers is None:
+        for old in config.OUTPUT_DIR.glob("clip_*.mp4"):   # clips from the last run (they'd be overwritten
+            try:                                            # anyway; extra ones would only confuse)
+                old.unlink()
+            except OSError:                                 # open in a video player: leave it
+                pass
     model = load_whisper()                      # load the speech model once for all clips
     # 1. Whisper listens a bit beyond each clip, so the edges can move to whole sentences.
     windows = []
     clips = sorted(clips, key=lambda c: c["start"])
-    for i, c in enumerate(clips, 1):
+    numbers = numbers or list(range(1, len(clips) + 1))
+    for k, (i, c) in enumerate(zip(numbers, clips)):
         progress(f"Clip {i}: listening for sentences and exact word timing...", step=f"listen {i}")
         # Neighbouring clips must not grow into each other.
-        prev_end = clips[i - 2]["end"] if i > 1 else 0.0
-        next_start = clips[i]["start"] if i < len(clips) else duration
+        prev_end = clips[k - 1]["end"] if k else 0.0
+        next_start = clips[k + 1]["start"] if k + 1 < len(clips) else duration
         win_start = max(0.0, prev_end, c["start"] - START_SEARCH - 1)
         win_end = min(duration, next_start, max(c["end"], c["start"] + min_len) + END_SEARCH)
         windows.append((listen(video, model, win_start, win_end, duration), c["start"], c["end"]))
@@ -141,7 +145,7 @@ def make_clips(video, clips, duration, progress=console,
     #    Where it can't, Whisper's punctuation and pauses decide.
     picks = fix_edges(windows, min_len, max_len, progress)
     outputs = []
-    for i, ((words, ai_start, ai_end), pick) in enumerate(zip(windows, picks), 1):
+    for i, c, (words, ai_start, ai_end), pick in zip(numbers, clips, windows, picks):
         if not words:
             start, end = ai_start, ai_end
         else:
@@ -151,13 +155,15 @@ def make_clips(video, clips, duration, progress=console,
                  f"edges by {'Gemini' if pick else 'Whisper'})...", step=f"cut {i}")
         raw = cut(video, start, end, config.TEMP_DIR / f"clip_{i}_raw.mp4")
         ass = config.TEMP_DIR / f"clip_{i}.ass"
-        captions_for(words, start, end, ass, watermark, corner)
+        captions_for(words, start, end, ass, watermark, corner, caption)
         progress(f"Clip {i}: making it vertical with face tracking and captions...")
         out = config.OUTPUT_DIR / f"clip_{i}.mp4"
-        track_crop(raw, out, vf=f"ass={ass.name}", progress=progress, name=str(i))
+        part = config.OUTPUT_DIR / f"clip_{i}.part.mp4"   # the old clip stays until the new one is complete
+        track_crop(raw, part, vf=f"ass={ass.name}", progress=progress, name=str(i))
+        part.replace(out)
         outputs.append(out)
         if on_clip:
-            on_clip(i, out)
+            on_clip(i, out, dict(c, start=start, end=end))
     return outputs
 
 

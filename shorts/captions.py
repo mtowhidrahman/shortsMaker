@@ -24,12 +24,17 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,Arial,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,8,3,2,70,70,330,1
+Style: Caption,Arial,{cap_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,8,3,2,70,70,330,1
 Style: Watermark,Arial,54,&H40FFFFFF,&H40FFFFFF,&H60000000,&H80000000,-1,0,0,0,100,100,1,0,1,3,1,{wm_align},50,50,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+
+# Caption looks the page offers. Colours are ASS colours (blue-green-red order).
+CAPTION_SIZES = {"Small": 78, "Medium": 92, "Large": 108}
+HIGHLIGHTS = {"Yellow": "&H00FFFF&", "Green": "&H00FF00&", "None": None}
+DEFAULT_CAPTION = {"size": "Medium", "highlight": "Yellow"}
 
 
 def transcribe_words(path, model=None, start=0.0, end=None):
@@ -73,11 +78,15 @@ def _clean(word):
     return word.replace("{", "(").replace("}", ")").replace("\\", "/")
 
 
-def write_ass(words, path, watermark="", corner="right", length=0.0):
+def write_ass(words, path, watermark="", corner="right", length=0.0, caption=None):
     """Write the subtitle file. Each chunk stays on screen until the next one starts
     (if the gap is short), so the captions don't flicker.
+    caption: {"size": Small/Medium/Large, "highlight": Yellow/Green/None}. With a highlight colour,
+    the word being spoken lights up (one line per word, the chunk itself stays the same).
     watermark: optional text shown the whole time (length seconds) in the bottom-left or
     bottom-right corner, close to the bottom edge, smaller and a little see-through."""
+    caption = {**DEFAULT_CAPTION, **(caption or {})}
+    colour = HIGHLIGHTS.get(caption["highlight"])
     chunks = group_words(words)
     lines = []
     for i, c in enumerate(chunks):
@@ -87,12 +96,20 @@ def write_ass(words, path, watermark="", corner="right", length=0.0):
             if nxt - end < 0.6:
                 end = nxt
         end = max(end, start + 0.25)
-        text = " ".join(_clean(w["word"]) for w in c).upper()
-        lines.append(f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{text}")
+        shown = [_clean(w["word"]).upper() for w in c]
+        if not colour:
+            lines.append(f"Dialogue: 0,{_ts(start)},{_ts(end)},Caption,,0,0,0,,{' '.join(shown)}")
+            continue
+        for k in range(len(c)):                     # word k lit from its start until the next word starts
+            w_start = start if k == 0 else c[k]["start"]
+            w_end = end if k + 1 == len(c) else c[k + 1]["start"]
+            text = " ".join(f"{{\\c{colour}}}{s}{{\\r}}" if j == k else s for j, s in enumerate(shown))
+            lines.append(f"Dialogue: 0,{_ts(w_start)},{_ts(w_end)},Caption,,0,0,0,,{text}")
     if watermark.strip():
         end = max(length, max((w["end"] for w in words), default=0.0)) + 1
         lines.append(f"Dialogue: 1,{_ts(0)},{_ts(end)},Watermark,,0,0,0,,{_clean(watermark.strip())}")
-    header = ASS_HEADER.replace("{wm_align}", "1" if corner == "left" else "3")   # 1/3 = bottom left/right
+    header = (ASS_HEADER.replace("{wm_align}", "1" if corner == "left" else "3")   # 1/3 = bottom left/right
+              .replace("{cap_size}", str(CAPTION_SIZES.get(caption["size"], CAPTION_SIZES["Medium"]))))
     path.write_text(header + "\n".join(lines) + "\n", encoding="utf-8")
     return path
 
@@ -104,12 +121,12 @@ def make_captions(clip_path, ass_path, model=None):
     return len(words)
 
 
-def captions_for(words, start, end, ass_path, watermark="", corner="right"):
+def captions_for(words, start, end, ass_path, watermark="", corner="right", caption=None):
     """Captions (and the optional watermark) for the part [start, end] of the video, from words
     already transcribed (times in video seconds). Times in the .ass file start at the clip start."""
     inside = [dict(w, start=w["start"] - start, end=min(w["end"], end) - start)
               for w in words if w["start"] >= start - 0.05 and w["start"] < end]
-    write_ass(inside, ass_path, watermark, corner, end - start)
+    write_ass(inside, ass_path, watermark, corner, end - start, caption)
     return len(inside)
 
 

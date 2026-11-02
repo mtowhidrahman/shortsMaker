@@ -20,11 +20,13 @@ def estimate(step, length=0.0, duration=0.0):
             "render": 0.29 * length}.get(kind, 5)
 
 
-def clip_plan(lengths):
-    """The steps make_clips() goes through, with estimates, for clips of these lengths."""
-    plan = [(f"listen {i}", estimate("listen", L)) for i, L in enumerate(lengths, 1)]
+def clip_plan(lengths, numbers=None):
+    """The steps make_clips() goes through, with estimates, for clips of these lengths
+    (numbers: the clip numbers, when only some clips are remade)."""
+    numbers = numbers or range(1, len(lengths) + 1)
+    plan = [(f"listen {i}", estimate("listen", L)) for i, L in zip(numbers, lengths)]
     plan.append(("edges", estimate("edges")))
-    for i, L in enumerate(lengths, 1):
+    for i, L in zip(numbers, lengths):
         plan += [(f"{kind} {i}", estimate(kind, L)) for kind in ("cut", "faces", "render")]
     return plan
 

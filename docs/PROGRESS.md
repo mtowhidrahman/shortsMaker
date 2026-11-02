@@ -106,6 +106,25 @@ with a made-up video id.
   (alignment 1) or bottom-right (3), MarginV 50 (close to the bottom edge, as the user asked).
 - Not tested in a real browser (the Chrome extension is not connected); tested with AppTest (Shorts Temp\scratch	est_app3.py).
 
+## Round 3 (2026-11-02): features 1, 2, 4, 6 + caption position
+
+- Captions: Arial bold 92 (was 112), MarginV 330 (was 460). The user's "watermark not fixed" was an old app copy still
+  running on port 8501: start.bat now stops whatever listens on 8501 first.
+- 1 Posting text: PROMPT asks Gemini for "title", "description", "hashtags" in the same pick request.
+  `clipper._post_text` cleans them, `post_text(clip)` joins them; manual clips have none. The page shows them in an
+  expander with st.code (copy button). Saved per clip in results.json `clips` (parallel to `outputs`).
+- 2 Highlight: `write_ass(..., caption={"size": Small/Medium/Large, "highlight": Yellow/Green/None})`. With a colour,
+  each chunk becomes one Dialogue per word with `{\c&H00FFFF&}WORD{\r}`. Words are uppercased before adding tags.
+- 4 Check first: checkbox `review_first` → job["review"]. run_job with no clips stops after pick_clips and sets
+  `state.review = {id, clips, tag}`; the settings view lists them (keep checkbox, start/end inputs, keys use `tag`).
+  "Make these N clips" validates with (lo-5, hi+15) and calls start(chosen). The saved video is reused, no new download.
+- 6 Remake: results.json also stores `job` (settings, `SETTINGS` keys) → `state.last_job`. "Change this clip" expander
+  (only when no job runs) → `remake(i, info, s, e)` → job with `remake: i`. make_clips(numbers=[i]) keeps other clips
+  and writes `clip_N.part.mp4`, then replaces clip_N.mp4 (a cancelled remake leaves the old clip). on_clip now gets
+  `(i, path, clip)` with the real cut times.
+- Tested: Shorts Temp\scratch\test_app4.py (review → untick → move start → make 2 → remake clip 2: clip 1 untouched),
+  test_oneclick.py (normal flow, Green/Large), check_caption_pos.py (frames).
+
 ## Part G: license
 
 `downloader._rights(info)` -> {"channel", "license": "cc" | "standard" | "unknown"} (yt-dlp's `license` field is set

@@ -36,7 +36,9 @@ Pick the {n} best clips for vertical short videos. Each clip must:
 
 Use the timestamps from the transcript for start and end.
 Answer with JSON only: a list of {n} objects with "start" (seconds, number),
-"end" (seconds, number) and "reason" (one short sentence).
+"end" (seconds, number), "reason" (one short sentence), and for posting the clip:
+"title" (catchy, under 60 characters), "description" (1-2 sentences that make people watch)
+and "hashtags" (a list of 5 relevant hashtags, each starting with #).
 
 TRANSCRIPT:
 {transcript}
@@ -100,11 +102,28 @@ def validate(clips, duration, n=None, min_len=config.MIN_CLIP_SECONDS, max_len=c
 
 
 def _clean(clips, duration, max_len=config.MAX_CLIP_SECONDS):
-    """Normalize numbers, keep each clip inside the video and under max_len, sort by start time."""
+    """Normalize numbers, keep each clip inside the video and under max_len, sort by start time.
+    Title, description and hashtags (for posting) are kept when Gemini gave them."""
     out = [{"start": round(float(c["start"]), 2),
             "end": round(min(float(c["end"]), duration, float(c["start"]) + max_len), 2),
-            "reason": str(c.get("reason", "")).strip()} for c in clips]
+            "reason": str(c.get("reason", "")).strip(), **_post_text(c)} for c in clips]
     return sorted(out, key=lambda c: c["start"])
+
+
+def _post_text(c):
+    """Title, description and hashtags from Gemini's answer (empty when missing or odd)."""
+    tags = c.get("hashtags") or []
+    if isinstance(tags, str):
+        tags = tags.split()
+    tags = ["#" + str(t).strip().lstrip("#").replace(" ", "") for t in tags if str(t).strip().lstrip("#")]
+    return {"title": str(c.get("title") or "").strip(), "description": str(c.get("description") or "").strip(),
+            "hashtags": tags[:8]}
+
+
+def post_text(c):
+    """Everything to paste when posting a clip: title, description and hashtags."""
+    return "\n\n".join(p for p in (c.get("title", ""), c.get("description", ""),
+                                   " ".join(c.get("hashtags", []))) if p)
 
 
 def suggest_count(duration, min_len=config.DEFAULT_LENGTH[0]):

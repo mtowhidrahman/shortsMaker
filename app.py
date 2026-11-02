@@ -8,16 +8,21 @@
 from shorts import config  # first: memory limits, cache folders, ffmpeg path
 
 import json
+import re
 import shutil
+import time
 
 import streamlit as st
 
-from shorts.clipper import ClipError, max_fit, parse_manual, pick_clips, save_transcript, suggest_count
+from shorts.captions import CAPTION_SIZES, HIGHLIGHTS
+from shorts.clipper import (ClipError, max_fit, parse_manual, pick_clips, post_text, save_transcript,
+                            suggest_count, validate)
 from shorts.cutter import make_clips
 from shorts.downloader import download, transcript_text, video_info
 from progress_view import Reporter, clip_plan, estimate, fmt
 
 RESULTS = config.OUTPUT_DIR / "results.json"   # the last results, so they survive a page reload
+SETTINGS = ("url", "id", "title", "duration", "n", "lo", "hi", "watermark", "corner", "caption")
 
 st.set_page_config(page_title="Short Video Maker", page_icon="🎬")
 st.title("🎬 Short Video Maker")
@@ -29,14 +34,17 @@ state = st.session_state
 
 # Streamlit forgets a setting whose box isn't drawn in a run (the working view draws none),
 # so keep the link and options explicitly.
-for key in [k for k in state.keys() if k in ("url", "length", "watermark", "corner") or k.startswith("n_")]:
+for key in [k for k in state.keys() if k in ("url", "length", "watermark", "corner", "cap_size", "cap_hl",
+                                              "review_first") or k.startswith("n_")]:
     state[key] = state[key]
 
 
 def save_results():
+    """Results file: the clips, their posting text and times, and the settings (to remake one clip)."""
     config.OUTPUT_DIR.mkdir(exist_ok=True)
     RESULTS.write_text(json.dumps({"outputs": state.get("outputs", []), "timing": state.get("timing"),
-                                   "title": state.get("results_title", "")}), encoding="utf-8")
+                                   "title": state.get("results_title", ""), "clips": state.get("clip_info", []),
+                                   "job": state.get("last_job")}), encoding="utf-8")
 
 
 def load_results():
@@ -45,24 +53,65 @@ def load_results():
         r = json.loads(RESULTS.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    outputs = [p for p in r.get("outputs", []) if config.OUTPUT_DIR.joinpath(p).exists()]
-    if outputs:
-        state.outputs, state.timing, state.results_title = outputs, r.get("timing"), r.get("title", "")
+    outputs = r.get("outputs", [])
+    infos = r.get("clips") or [{}] * len(outputs)       # older results files have no clip info
+    kept = [(p, c) for p, c in zip(outputs, infos) if config.OUTPUT_DIR.joinpath(p).exists()]
+    if kept:
+        state.outputs, state.clip_info = [p for p, _ in kept], [c for _, c in kept]
+        state.timing, state.results_title, state.last_job = r.get("timing"), r.get("title", ""), r.get("job")
 
 
-def show_clip(i, path, key):
+def md(text):
+    """Text shown as-is in a Streamlit label (no bold, links or maths from * _ $ ...)."""
+    return re.sub(r"([\\`*_{}\[\]<>#+\-.!|$~])", r"\\\1", text)
+
+
+def show_clip(i, path, key, info=None, controls=False):
+    """A finished clip: video, download button, the text to post it with, and (controls=True,
+    only when no job is running) a way to change its start/end and remake just this clip."""
     st.video(path)
     with open(path, "rb") as f:   # on_click="ignore": downloading doesn't reload the page
         st.download_button(f"Download clip {i}", f, file_name=f"clip_{i}.mp4", mime="video/mp4",
                            key=key, on_click="ignore")
+    info = info or {}
+    if post_text(info):
+        with st.expander("📝 Title, description, hashtags"):
+            st.code(post_text(info), language=None, wrap_lines=True)   # copy button in the corner
+    if controls and "start" in info and state.get("last_job"):
+        with st.expander("✂️ Change this clip"):
+            limit = float(state.last_job["duration"])
+            tag = f"{i}_{info['start']}_{info['end']}"                 # new boxes after each remake
+            s = st.number_input("Start (seconds)", 0.0, limit, float(info["start"]), 1.0, key=f"re_s_{tag}")
+            e = st.number_input("End (seconds)", 0.0, limit, float(info["end"]), 1.0, key=f"re_e_{tag}")
+            st.caption(f"{fmt(s)} – {fmt(e)} · {e - s:.0f} s. The edges are still moved to whole sentences.")
+            if st.button(f"Remake clip {i}", key=f"re_b_{tag}"):
+                remake(i, info, s, e)
+
+
+def remake(i, info, start, end):
+    """Make one clip again with new times (same settings); the other clips stay as they are."""
+    job = state.last_job
+    problems = validate([{"start": start, "end": end}], job["duration"], None, job["lo"] - 5, job["hi"] + 15)
+    if problems:
+        st.error("Please fix: " + "; ".join(problems))
+        return
+    state.job = {**job, "clips": [dict(info, start=start, end=end)], "remake": i, "review": False}
+    for k in ("notice", "error", "ai_error"):
+        state.pop(k, None)
+    st.rerun()
 
 
 # ----- A Cancel click (or anything else) stopped a running job: keep what is finished -----
 if state.get("job", {}).get("started"):
-    done, total = len(state.get("outputs", [])), state.job.get("total", "?")
-    state.notice = (f"Stopped. {done} of {total} clips were finished" +
-                    (": you can download them below." if done else "."))
-    state.pop("job")
+    job = state.pop("job")
+    if job.get("remake"):
+        state.notice = f"Stopped. Clip {job['remake']} was not changed."
+    elif job.get("review") and not job["clips"]:
+        state.notice = "Stopped before the clips were picked."
+    else:
+        done, total = len(state.get("outputs", [])), job.get("total", "?")
+        state.notice = (f"Stopped. {done} of {total} clips were finished" +
+                        (": you can download them below." if done else "."))
     save_results()
 
 if "outputs" not in state and "job" not in state:
@@ -75,16 +124,27 @@ def run_job(job):
     job["started"] = True
     space_area.empty()
     lo, hi, n = job["lo"], job["hi"], job["n"]
-    state.outputs, state.timing, state.results_title = [], None, job["title"]
-    save_results()
+    remake_n = job.get("remake")                  # remaking one clip: the others stay
+    pick_only = job.get("review") and not job["clips"]   # the user checks the clips before they are made
+    numbers = [remake_n] if remake_n else None
+    if not remake_n and not pick_only:
+        state.outputs, state.clip_info, state.timing, state.results_title = [], [], None, job["title"]
+        state.last_job = {k: job[k] for k in SETTINGS}
+        save_results()
     with main.container():
         what = f"{len(job['clips'])} clips" if job["clips"] else f"{n} clip{'s' if n != 1 else ''}"
-        st.subheader(f"Making {what} ({lo}–{hi} s) from “{job['title']}”")
+        if remake_n:
+            st.subheader(f"Remaking clip {remake_n} from “{job['title']}”")
+        elif pick_only:
+            st.subheader(f"Finding the best {what} ({lo}–{hi} s) in “{job['title']}”")
+        else:
+            st.subheader(f"Making {what} ({lo}–{hi} s) from “{job['title']}”")
         st.button("⏹ Cancel", help="Stop now. Clips that are already finished stay below for download.")
         cached = (config.TEMP_DIR / f"{job['id']}.mp4").exists()
         lengths = [c["end"] - c["start"] for c in job["clips"]] if job["clips"] else [(lo + hi) / 2] * n
         plan = ([("download", 1 if cached else estimate("download"))]
-                + ([] if job["clips"] else [("pick", estimate("pick"))]) + clip_plan(lengths))
+                + ([] if job["clips"] else [("pick", estimate("pick"))])
+                + ([] if pick_only else clip_plan(lengths, numbers)))
         bars = st.container()
         with st.status("Working... (this takes a few minutes)", expanded=True) as status:
             progress = Reporter(status, bars, plan, job["duration"])
@@ -92,13 +152,22 @@ def run_job(job):
         live = st.container()
     row = {}                                  # the current row of three columns
 
-    def clip_ready(i, path):
+    def clip_ready(i, path, clip):
+        if remake_n:                          # replace that clip's info; the file was replaced already
+            state.clip_info = (state.get("clip_info") or [{}] * len(state.outputs))
+            if i - 1 < len(state.clip_info):
+                state.clip_info[i - 1] = clip
+            with live:
+                show_clip(i, path, f"live{i}", clip)
+            save_results()
+            return
         state.outputs.append(str(path.relative_to(config.OUTPUT_DIR)))
+        state.clip_info.append(clip)
         save_results()
         if (i - 1) % 3 == 0:
             row["cols"] = live.columns(3)
         with row["cols"][(i - 1) % 3]:
-            show_clip(i, path, f"live{i}")
+            show_clip(i, path, f"live{i}", clip)
 
     try:
         video = download(job["url"], progress=progress)
@@ -112,12 +181,17 @@ def run_job(job):
                 progress.finish()
                 state.ai_error = str(e)
                 return
+            if pick_only:                     # show the picks; the user makes them with one more click
+                progress.finish()
+                state.review = {"id": job["id"], "clips": clips, "tag": str(time.time())}
+                return
         job["total"] = len(clips)
-        for i, c in enumerate(clips, 1):
+        for i, c in zip(numbers or range(1, len(clips) + 1), clips):
             status.write(f"Clip {i}: {c['start']:.1f}s – {c['end']:.1f}s. {c.get('reason', '')}")
-        progress.replan(clip_plan([c["end"] - c["start"] for c in clips]))
+        progress.replan(clip_plan([c["end"] - c["start"] for c in clips], numbers))
         make_clips(video["video_path"], clips, video["duration"], progress=progress, min_len=lo, max_len=hi,
-                   watermark=job["watermark"], corner=job["corner"], on_clip=clip_ready)
+                   watermark=job["watermark"], corner=job["corner"], on_clip=clip_ready,
+                   caption=job.get("caption"), numbers=numbers)
         state.pop("ai_error", None)
         total, steps = progress.finish()
         state.timing = (total, steps)
@@ -192,13 +266,22 @@ with main.container():
                                       help="Shown small in a bottom corner of every clip. Leave empty for none.")
         corner = corner_col.radio("Watermark corner", ["Bottom right", "Bottom left"], key="corner",
                                   horizontal=True)
+        size_col, hl_col = st.columns([2, 3])
+        cap_size = size_col.select_slider("Caption size", list(CAPTION_SIZES), key="cap_size",
+                                          **({} if "cap_size" in state else {"value": "Medium"}))
+        highlight = hl_col.radio("Highlight the word being spoken", list(HIGHLIGHTS), key="cap_hl",
+                                 horizontal=True)
+        review_first = st.checkbox("Let me check the clips before they are made", key="review_first",
+                                   help="The AI picks the clips first. You see each clip's times, title and "
+                                        "reason, can untick clips or move their start/end, then make them.")
 
     def start(clips=None):
         """Save the job and reload the page into the working view."""
         state.job = {"url": url, "id": info["id"], "title": info["title"], "duration": info["duration"],
                      "n": int(n), "lo": lo, "hi": hi, "clips": clips or [], "watermark": watermark,
-                     "corner": "left" if corner == "Bottom left" else "right"}
-        for k in ("outputs", "ai_error", "timing", "notice", "error"):
+                     "corner": "left" if corner == "Bottom left" else "right",
+                     "caption": {"size": cap_size, "highlight": highlight}, "review": review_first}
+        for k in ("outputs", "clip_info", "ai_error", "timing", "notice", "error", "review"):
             state.pop(k, None)
         st.rerun()
 
@@ -207,6 +290,36 @@ with main.container():
             st.warning("Please paste a YouTube link first." if not url else "Please use a working YouTube link.")
         else:
             start()
+
+    # ----- Check the clips the AI picked, then make them -----
+    review = state.get("review")
+    if review and info and review["id"] == info["id"]:
+        st.subheader("Check the clips")
+        st.caption("Untick clips you don't want, or change their start and end (in seconds). "
+                   "The edges are still moved to whole sentences when they are made.")
+        chosen = []
+        for k, c in enumerate(review["clips"]):
+            tag = f"{review['tag']}_{k}"
+            with st.container(border=True):
+                keep = st.checkbox(f"**Clip {k + 1}:** {md(c.get('title') or c.get('reason', ''))}",
+                                   value=True, key=f"rv_keep_{tag}")
+                if c.get("title") and c.get("reason"):
+                    st.caption(c["reason"])
+                a, b, d = st.columns(3)
+                s = a.number_input("Start (seconds)", 0.0, float(info["duration"]), float(c["start"]), 1.0,
+                                   key=f"rv_s_{tag}")
+                e = b.number_input("End (seconds)", 0.0, float(info["duration"]), float(c["end"]), 1.0,
+                                   key=f"rv_e_{tag}")
+                d.write(f"{fmt(s)} – {fmt(e)}  \n**{e - s:.0f} s** long")
+                if keep:
+                    chosen.append(dict(c, start=s, end=e))
+        if st.button(f"Make these {len(chosen)} clip{'s' if len(chosen) != 1 else ''}", type="primary",
+                     disabled=not chosen):
+            problems = validate(chosen, info["duration"], None, lo - 5, hi + 15)
+            if problems:
+                st.error("Please fix: " + "; ".join(problems))
+            else:
+                start(chosen)
 
     # ----- Manual fallback: the AI was unavailable, so the user types the clip times -----
     if state.get("ai_error") and state.get("video") and info and state.video["id"] == info["id"]:
@@ -238,10 +351,11 @@ if state.get("outputs"):
             st.write(f"⏱️ Finished in **{fmt(total)}** — " +
                      " · ".join(f"{name} {fmt(sec)}" for name, sec in steps if sec >= 0.5))
         outputs = [str(config.OUTPUT_DIR / p) for p in state.outputs]
+        infos = state.get("clip_info") or []
         for row in range(0, len(outputs), 3):          # three videos per row
             for col, (i, path) in zip(st.columns(3), list(enumerate(outputs, 1))[row:row + 3]):
                 with col:
-                    show_clip(i, path, f"dl{i}")
+                    show_clip(i, path, f"dl{i}", infos[i - 1] if i <= len(infos) else None, controls=True)
 
 
 # ----- Housekeeping -----

@@ -16,10 +16,15 @@ Remember always, I dont Want C drive of my PC to be taken so much space
 1. Paste a YouTube link. The page shows the video's title and length and suggests a number of clips.
 2. Choose the clip length (15 to 90 seconds, default 60–90) and how many clips (1 to 10).
    Optional: type a watermark (for example your channel name) and choose the bottom corner for it.
+   Choose the caption size and the colour that lights up the word being spoken (or None).
+   Tick **Let me check the clips before they are made** to see the AI's picks first: untick clips you
+   don't want or change their start/end, then click **Make these clips**.
 3. Click **Make shorts**. It takes a few minutes (more clips take longer). Each clip appears with a
    download button as soon as it is ready. **Cancel** stops the rest; finished clips stay.
 4. Watch and download the clips on the page. They are also saved in the `output` folder
    (the next run replaces them, so download the ones you want to keep).
+   Under each clip: **Title, description, hashtags** (written by the AI, with a copy button) and
+   **Change this clip** (new start/end, then **Remake clip N** makes only that clip again).
 5. If the AI can't pick clips (no key, the free limit is reached, or Gemini is busy), the page lets you
    save the transcript and type the clip times yourself, like `1:05 - 2:20` (one clip per line).
 
