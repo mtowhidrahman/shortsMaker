@@ -125,6 +125,35 @@ with a made-up video id.
 - Tested: Shorts Temp\scratch\test_app4.py (review → untick → move start → make 2 → remake clip 2: clip 1 untouched),
   test_oneclick.py (normal flow, Green/Large), check_caption_pos.py (frames).
 
+## Round 4 (planned 2026-11-07): shorts from movie files on the PC. STATUS: PLAN ONLY, waiting for the user's answers + "start"
+
+Lesson: the first talk about this feature (and Round 3's features 3 and 5) was never written down, so it was lost.
+**Always write every plan, answer and decision here before ending a turn.**
+
+Rules the user set for this round: no pressure on the PC, nothing on C:, don't break the working YouTube flow.
+
+Safety: build on a git branch `local-files`; the YouTube path stays untouched; merge into master only after the user
+tests it. Undo = switch back to master.
+
+Parts (one at a time, test + commit each):
+- **L1 Pick a file:** a "YouTube link / File on my PC" choice. A "Browse..." button opens the normal Windows file window
+  (tkinter, runs on the same PC) plus a path box. NOT st.file_uploader (it copies the whole movie into RAM/temp).
+  Read title, length, size, resolution with ffprobe. The movie is read where it is, never copied.
+- **L2 Transcript:** 1st: an English subtitle track inside the file; 2nd: a `.srt` with the same name next to it;
+  3rd: Whisper `base` on the audio in 10-minute pieces (so RAM stays ~0.4 GB; today load_audio reads the whole
+  audio at once, ~0.7 GB for 2 h), with fewer CPU threads so the PC stays usable. Cached in Shorts Temp by
+  path + size + date, so a movie is transcribed only once.
+- **L3 Picking:** same Gemini code. Check that a 2 h transcript fits one request (about 30k tokens, should be fine).
+- **L4 Cutting:** movies are often MKV, HEVC, 4K or HDR. Cut each clip first and shrink it to 1080 tall, so face
+  tracking + render cost the same as today. HDR -> normal colours (tonemap) only if the file is HDR.
+- **L5 Test:** with a small local file made from the cached TED video (no downloads), then the user tries a real movie.
+
+Expected load: C: 0 bytes. E: a few MB per movie (transcript + cut pieces). The only heavy part is Whisper when the
+movie has no subtitles (guess 5–15 min CPU for a 2 h movie; measure it). Everything else = same as a YouTube video.
+Copyright: movies are copyrighted; personal use only (README already says this once).
+
+Open questions for the user: movie formats / 4K? subtitles present? Browse button vs path box? Whisper wait OK?
+
 ## Part G: license
 
 `downloader._rights(info)` -> {"channel", "license": "cc" | "standard" | "unknown"} (yt-dlp's `license` field is set
